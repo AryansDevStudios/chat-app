@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { collection, query, orderBy, serverTimestamp } from "firebase/firestore"
+import { collection, query, orderBy, serverTimestamp, doc } from "firebase/firestore"
 import { useChatSession } from "@/hooks/use-chat-session"
 import { WelcomeDialog } from "./WelcomeDialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -18,20 +18,31 @@ import {
   Play,
   Pause,
   SendHorizontal,
-  Reply
+  Reply,
+  MoreVertical,
+  Pencil,
+  Trash2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
   useFirestore, 
   useCollection, 
   useMemoFirebase, 
-  addDocumentNonBlocking
+  addDocumentNonBlocking,
+  updateDocumentNonBlocking,
+  deleteDocumentNonBlocking
 } from "@/firebase"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useIsMobile } from "@/hooks/use-mobile"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface Message {
   id: string
@@ -58,6 +69,7 @@ export function ChatRoom() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const [replyTarget, setReplyTarget] = useState<{ id: string, content: string, senderDisplayName: string } | null>(null)
+  const [editTarget, setEditTarget] = useState<Message | null>(null)
   
   const [scale, setScale] = useState(1)
   const [translate, setTranslate] = useState({ x: 0, y: 0 })
@@ -104,19 +116,14 @@ export function ChatRoom() {
     const element = document.getElementById(`msg-${msgId}`)
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" })
-      
-      // Vibrant Neon Purple/Pink highlight with pulse
       element.style.backgroundColor = "rgba(163, 7, 186, 0.4)"
-      element.style.boxShadow = "0 0 50px rgba(163, 7, 186, 0.8), 0 0 100px rgba(226, 30, 83, 0.3)"
-      element.style.borderRadius = "1.5rem"
-      element.style.transition = "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
-      element.style.transform = "scale(1.05)"
+      element.style.boxShadow = "0 0 50px rgba(163, 7, 186, 0.8)"
+      element.style.transform = "scale(1.02)"
       element.style.zIndex = "40"
       
       setTimeout(() => {
         element.style.backgroundColor = ""
         element.style.boxShadow = ""
-        element.style.borderRadius = ""
         element.style.transform = ""
         element.style.zIndex = ""
       }, 2000)
@@ -304,24 +311,33 @@ export function ChatRoom() {
     const content = editableInputRef.current?.innerText.trim() || ""
     if ((!content && !selectedImage && !audioBase64) || !userId || !displayName || !roomId || !db) return
 
-    const messageData: any = {
-      content: content,
-      imageUrl: selectedImage || null,
-      audioUrl: audioBase64 || null,
-      senderId: userId,
-      senderDisplayName: displayName,
-      timestamp: serverTimestamp(),
-      roomId: roomId
-    }
+    if (editTarget) {
+      const docRef = doc(db, "rooms", roomId, "messages", editTarget.id)
+      updateDocumentNonBlocking(docRef, {
+        content: content,
+        edited: true
+      })
+      setEditTarget(null)
+    } else {
+      const messageData: any = {
+        content: content,
+        imageUrl: selectedImage || null,
+        audioUrl: audioBase64 || null,
+        senderId: userId,
+        senderDisplayName: displayName,
+        timestamp: serverTimestamp(),
+        roomId: roomId
+      }
 
-    if (replyTarget) {
-      messageData.replyToId = replyTarget.id
-      messageData.replyToContent = replyTarget.content
-      messageData.replyToSenderDisplayName = replyTarget.senderDisplayName
-    }
+      if (replyTarget) {
+        messageData.replyToId = replyTarget.id
+        messageData.replyToContent = replyTarget.content
+        messageData.replyToSenderDisplayName = replyTarget.senderDisplayName
+      }
 
-    const messagesRef = collection(db, "rooms", roomId, "messages")
-    addDocumentNonBlocking(messagesRef, messageData)
+      const messagesRef = collection(db, "rooms", roomId, "messages")
+      addDocumentNonBlocking(messagesRef, messageData)
+    }
 
     if (editableInputRef.current) {
       editableInputRef.current.innerText = ""
@@ -352,9 +368,26 @@ export function ChatRoom() {
       content: msg.content || (msg.imageUrl ? "📷 Photo" : msg.audioUrl ? "🎤 Voice Message" : ""),
       senderDisplayName: msg.senderDisplayName
     })
+    setEditTarget(null)
     if (editableInputRef.current) {
       editableInputRef.current.focus()
     }
+  }
+
+  const handleEditMessage = (msg: Message) => {
+    setEditTarget(msg)
+    setReplyTarget(null)
+    if (editableInputRef.current) {
+      editableInputRef.current.innerText = msg.content
+      editableInputRef.current.focus()
+    }
+  }
+
+  const handleDeleteMessage = (msg: Message) => {
+    if (!db || !roomId) return
+    const docRef = doc(db, "rooms", roomId, "messages", msg.id)
+    deleteDocumentNonBlocking(docRef)
+    toast({ title: "Message Deleted" })
   }
 
   if (!isLoaded) {
@@ -400,8 +433,9 @@ export function ChatRoom() {
                 isLastInGroup={index === messages.length - 1 || messages[index + 1].senderId !== msg.senderId}
                 onPreviewImage={setPreviewImageUrl}
                 onReply={() => handleReplyToMessage(msg)}
+                onEdit={() => handleEditMessage(msg)}
+                onDelete={() => handleDeleteMessage(msg)}
                 onJumpToMessage={scrollToMessage}
-                isMobile={isMobile}
               />
             ))}
           </div>
@@ -427,6 +461,25 @@ export function ChatRoom() {
             </div>
           )}
 
+          {editTarget && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-white/5 border-l-2 border-yellow-500 rounded-t-xl animate-in slide-in-from-bottom-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-yellow-500 font-bold uppercase truncate">
+                  Editing Message
+                </p>
+                <p className="text-xs text-white/60 truncate italic">
+                  {editTarget.content}
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
+                setEditTarget(null)
+                if (editableInputRef.current) editableInputRef.current.innerText = ""
+              }}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
           {selectedImage && (
             <div className="relative w-24 h-24 mb-2 rounded-xl overflow-hidden border border-white/20 animate-in zoom-in-95">
               <Image src={selectedImage} alt="Preview" fill className="object-cover" unoptimized />
@@ -436,42 +489,30 @@ export function ChatRoom() {
             </div>
           )}
 
-          {audioBase64 && !isRecording && (
-            <div className="flex items-center gap-3 px-4 py-2 bg-white/5 border-l-2 border-red-500 rounded-t-xl animate-in slide-in-from-bottom-2">
-              <div className="flex items-center gap-2 flex-1">
-                <Mic className="w-4 h-4 text-red-500" />
-                <span className="text-sm font-medium">Voice message ready</span>
-              </div>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setAudioBase64(null)}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-
           <div className="ig-input-pill shadow-2xl ring-1 ring-white/10 relative">
-            <div className="flex items-center gap-0.5 self-end mb-1">
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 rounded-full hover:bg-white/10"
-                onClick={() => fileInputRef.current?.click()}
-                title="Send Image"
-              >
-                <ImageIcon className="w-5 h-5 text-white/70" />
-              </Button>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 rounded-full hover:bg-white/10"
-                onClick={openCamera}
-                title="Camera"
-              >
-                <Camera className="w-5 h-5 text-white/70" />
-              </Button>
-            </div>
+            {!editTarget && (
+              <div className="flex items-center gap-0.5 self-end mb-1">
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 rounded-full hover:bg-white/10"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <ImageIcon className="w-5 h-5 text-white/70" />
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 rounded-full hover:bg-white/10"
+                  onClick={openCamera}
+                >
+                  <Camera className="w-5 h-5 text-white/70" />
+                </Button>
+              </div>
+            )}
             
             {isRecording ? (
               <div className="flex-1 flex items-center gap-3 px-2">
@@ -510,7 +551,7 @@ export function ChatRoom() {
 
             {!isRecording && (
               <div className="flex items-center gap-1 self-end mb-1">
-                {(inputText.trim() || selectedImage || audioBase64) ? (
+                {(inputText.trim() || selectedImage || audioBase64 || editTarget) ? (
                   <Button onClick={handleSendMessage} variant="ghost" size="icon" className="h-8 w-8 rounded-full text-primary hover:bg-primary/10 transition-all">
                     <SendHorizontal className="w-5 h-5" />
                   </Button>
@@ -630,18 +671,22 @@ export function ChatRoom() {
   )
 }
 
-function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImage, onReply, onJumpToMessage, isMobile }: { 
+function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImage, onReply, onEdit, onDelete, onJumpToMessage }: { 
   msg: Message, 
   isMe: boolean, 
   isFirstInGroup: boolean,
   isLastInGroup: boolean,
   onPreviewImage: (url: string) => void,
   onReply: () => void,
-  onJumpToMessage: (id: string) => void,
-  isMobile: boolean
+  onEdit: () => void,
+  onDelete: () => void,
+  onJumpToMessage: (id: string) => void
 }) {
   const [isPlaying, setIsPlaying] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  
+  const clickCountRef = useRef(0)
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const toggleAudio = (e: React.MouseEvent) => {
@@ -656,39 +701,35 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
     setIsPlaying(!isPlaying)
   }
 
-  const handleImageClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleMessageGesture = (e: React.MouseEvent | React.TouchEvent) => {
+    // Only handle if not clicking on the dropdown trigger
+    if ((e.target as HTMLElement).closest('[data-dropdown-trigger]')) return;
     
-    if (clickTimerRef.current) {
-      // It's a double click!
-      clearTimeout(clickTimerRef.current)
-      clickTimerRef.current = null
-      onReply()
-    } else {
-      // Start a timer for the first click
-      clickTimerRef.current = setTimeout(() => {
-        onPreviewImage(msg.imageUrl!)
-        clickTimerRef.current = null
-      }, 250)
-    }
-  }
-
-  const handleBubbleDoubleClick = (e: React.MouseEvent | React.TouchEvent) => {
-    if (isMobile) {
-      e.preventDefault()
-      onReply()
-    }
+    clickCountRef.current += 1
+    
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+    
+    clickTimerRef.current = setTimeout(() => {
+      if (clickCountRef.current === 1) {
+        if (msg.imageUrl) onPreviewImage(msg.imageUrl)
+      } else if (clickCountRef.current === 2) {
+        onReply()
+      } else if (clickCountRef.current >= 3) {
+        setMenuOpen(true)
+      }
+      clickCountRef.current = 0
+    }, 280) // Gesture window
   }
 
   return (
     <div 
       id={`msg-${msg.id}`}
       className={cn(
-        "flex flex-col max-w-[85%] lg:max-w-[75%] animate-message relative select-none rounded-xl transition-colors duration-500", 
+        "flex flex-col max-w-[85%] lg:max-w-[75%] animate-message relative select-none rounded-xl transition-all duration-500", 
         isMe ? "self-end items-end" : "self-start items-start",
         isFirstInGroup && "mt-6"
       )}
-      onDoubleClick={handleBubbleDoubleClick}
+      onClick={handleMessageGesture}
     >
       {!isMe && isFirstInGroup && (
         <span className="text-[11px] text-muted-foreground ml-3 mb-1 font-semibold uppercase tracking-wider">
@@ -696,81 +737,99 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
         </span>
       )}
 
-      <div 
-        className={cn(
-          "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all group",
-          isMe ? "ig-bubble-me" : "ig-bubble-other",
-          !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
-          isMe && !isLastInGroup && "mb-0.5",
-          !isMe && !isLastInGroup && "mb-0.5",
-          msg.imageUrl && "p-0 overflow-hidden",
-          msg.audioUrl && "min-w-[200px]"
-        )}
-      >
-        {msg.replyToId && (
-          <div 
-            onClick={() => msg.replyToId && onJumpToMessage(msg.replyToId)}
-            className="px-3 pt-2 pb-1 opacity-70 border-b border-white/10 bg-black/20 flex items-center gap-2 max-w-full cursor-pointer hover:bg-black/40 transition-colors"
-          >
-            <Reply className="w-3 h-3 shrink-0" />
-            <div className="flex flex-col min-w-0">
-              <span className="text-[10px] font-bold truncate">{msg.replyToSenderDisplayName}</span>
-              <span className="text-[10px] truncate italic">{msg.replyToContent}</span>
-            </div>
-          </div>
-        )}
-
-        {msg.imageUrl && (
-          <div 
-            className="relative w-full min-h-[150px] max-w-sm cursor-zoom-in group"
-            onClick={handleImageClick}
-          >
-            <Image 
-              src={msg.imageUrl} 
-              alt="Shared media" 
-              width={400} 
-              height={400} 
-              className="object-contain w-full h-auto max-h-[400px] hover:opacity-90 transition-opacity" 
-              unoptimized 
-            />
-          </div>
-        )}
-
-        {msg.audioUrl && (
-          <div className="flex items-center gap-3 px-4 py-3">
-            <Button 
-              size="icon" 
-              variant="ghost" 
-              className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 z-10"
-              onClick={toggleAudio}
-            >
-              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-            </Button>
-            <div className="flex-1 flex flex-col gap-1">
-              <div className="h-1 w-full bg-white/20 rounded-full relative overflow-hidden">
-                <div className={cn("absolute inset-0 bg-white/60", isPlaying ? "animate-pulse" : "w-0")} />
-              </div>
-              <span className="text-[10px] opacity-60">Voice Message</span>
-            </div>
-            <audio 
-              ref={audioRef} 
-              src={msg.audioUrl} 
-              onEnded={() => setIsPlaying(false)}
-              onPause={() => setIsPlaying(false)}
-              onPlay={() => setIsPlaying(true)}
-              className="hidden" 
-            />
-          </div>
-        )}
-
-        {msg.content && (
-          <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words relative">
-            {msg.content}
-            {msg.edited && (
-              <span className="text-[10px] opacity-50 ml-2 italic">(edited)</span>
+      <div className="relative group flex items-center gap-2">
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <button data-dropdown-trigger className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-white/5 rounded-full outline-none">
+              <MoreVertical className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align={isMe ? "end" : "start"} className="bg-black border-white/10 text-white min-w-[140px] rounded-xl">
+            <DropdownMenuItem onClick={onReply} className="gap-2 focus:bg-white/5">
+              <Reply className="w-4 h-4" /> Reply
+            </DropdownMenuItem>
+            {isMe && (
+              <DropdownMenuItem onClick={onEdit} className="gap-2 focus:bg-white/5">
+                <Pencil className="w-4 h-4" /> Edit
+              </DropdownMenuItem>
             )}
-          </div>
-        )}
+            {isMe && (
+              <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-500 focus:bg-red-500/10 focus:text-red-500">
+                <Trash2 className="w-4 h-4" /> Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div 
+          className={cn(
+            "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all",
+            isMe ? "ig-bubble-me" : "ig-bubble-other",
+            !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
+            msg.imageUrl && "p-0 overflow-hidden",
+            msg.audioUrl && "min-w-[200px]"
+          )}
+        >
+          {msg.replyToId && (
+            <div 
+              onClick={(e) => { e.stopPropagation(); onJumpToMessage(msg.replyToId!) }}
+              className="px-3 pt-2 pb-1 opacity-70 border-b border-white/10 bg-black/20 flex items-center gap-2 max-w-full cursor-pointer hover:bg-black/40 transition-colors"
+            >
+              <Reply className="w-3 h-3 shrink-0" />
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold truncate">{msg.replyToSenderDisplayName}</span>
+                <span className="text-[10px] truncate italic">{msg.replyToContent}</span>
+              </div>
+            </div>
+          )}
+
+          {msg.imageUrl && (
+            <div className="relative w-full min-h-[150px] max-w-sm">
+              <Image 
+                src={msg.imageUrl} 
+                alt="Shared media" 
+                width={400} 
+                height={400} 
+                className="object-contain w-full h-auto max-h-[400px]" 
+                unoptimized 
+              />
+            </div>
+          )}
+
+          {msg.audioUrl && (
+            <div className="flex items-center gap-3 px-4 py-3">
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 z-10"
+                onClick={toggleAudio}
+              >
+                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+              </Button>
+              <div className="flex-1 flex flex-col gap-1">
+                <div className="h-1 w-full bg-white/20 rounded-full relative overflow-hidden">
+                  <div className={cn("absolute inset-0 bg-white/60", isPlaying ? "animate-pulse" : "w-0")} />
+                </div>
+                <span className="text-[10px] opacity-60">Voice Message</span>
+              </div>
+              <audio 
+                ref={audioRef} 
+                src={msg.audioUrl} 
+                onEnded={() => setIsPlaying(false)}
+                className="hidden" 
+              />
+            </div>
+          )}
+
+          {msg.content && (
+            <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words relative">
+              {msg.content}
+              {msg.edited && (
+                <span className="text-[10px] opacity-50 ml-2 italic">(edited)</span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
