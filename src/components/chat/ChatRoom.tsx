@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -9,22 +8,17 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { 
-  ChevronLeft, 
-  ChevronDown,
   Camera, 
   Loader2,
   X,
   Share,
   Home,
   Reply,
-  Pencil,
-  Trash2,
   CornerDownRight,
   Mic,
   Square,
   Play,
-  Pause,
-  Smile
+  Pause
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -44,12 +38,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface Message {
   id: string
@@ -66,22 +54,6 @@ interface Message {
   edited?: boolean
 }
 
-const STICKERS = [
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3o7TKMGpxVfFvYV4s0/giphy.gif",
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l41lI4bS07z4J8wEw/giphy.gif",
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3o7TKMGpxVfFvYV4s0/giphy.gif",
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l0HlIDU8qnuY3Tchy/giphy.gif",
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3o7TKMGpxVfFvYV4s0/giphy.gif",
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l0HlIDU8qnuY3Tchy/giphy.gif",
-]
-
-const GIFS = [
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9ZyZjdD1n/111ebonMs90YLu/giphy.gif",
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9ZyZjdD1n/3o7TKMGpxVfFvYV4s0/giphy.gif",
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9ZyZjdD1n/l41lI4bS07z4J8wEw/giphy.gif",
-  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9ZyZjdD1n/111ebonMs90YLu/giphy.gif",
-]
-
 export function ChatRoom() {
   const db = useFirestore()
   const { toast } = useToast()
@@ -91,7 +63,6 @@ export function ChatRoom() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editingMessage, setEditingMessage] = useState<Message | null>(null)
-  const [isPickerOpen, setIsPickerOpen] = useState(false)
   
   // Voice Recording State
   const [isRecording, setIsRecording] = useState(false)
@@ -123,22 +94,37 @@ export function ChatRoom() {
     }
   }, [messages])
 
+  const processImageFile = (file: File) => {
+    if (file.size > 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "File too large",
+        description: "Please select an image under 1MB.",
+      })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setSelectedImage(event.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      if (file.size > 1024 * 1024) {
-        toast({
-          variant: "destructive",
-          title: "File too large",
-          description: "Please select an image under 1MB.",
-        })
-        return
+      processImageFile(file)
+    }
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        const file = items[i].getAsFile()
+        if (file) processImageFile(file)
       }
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setSelectedImage(event.target?.result as string)
-      }
-      reader.readAsDataURL(file)
     }
   }
 
@@ -233,22 +219,6 @@ export function ChatRoom() {
     setSelectedImage(null)
     setAudioBase64(null)
     setReplyTo(null)
-  }
-
-  const sendMediaMessage = (url: string) => {
-    if (!userId || !displayName || !roomId || !db) return
-    const messageData: any = {
-      content: "",
-      imageUrl: url,
-      audioUrl: null,
-      senderId: userId,
-      senderDisplayName: displayName,
-      timestamp: serverTimestamp(),
-      roomId: roomId
-    }
-    const messagesRef = collection(db, "rooms", roomId, "messages")
-    addDocumentNonBlocking(messagesRef, messageData)
-    setIsPickerOpen(false)
   }
 
   const handleShare = async () => {
@@ -396,52 +366,6 @@ export function ChatRoom() {
               >
                 <Camera className="w-5 h-5 text-white" />
               </Button>
-              <Popover open={isPickerOpen} onOpenChange={setIsPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 rounded-full hover:bg-white/10 transition-all active:scale-90"
-                  >
-                    <Smile className="w-5 h-5 text-white" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent side="top" className="w-80 p-0 bg-[#262626] border-white/10 rounded-2xl overflow-hidden">
-                  <Tabs defaultValue="stickers" className="w-full">
-                    <TabsList className="w-full bg-transparent border-b border-white/10 h-10 rounded-none p-0">
-                      <TabsTrigger value="stickers" className="flex-1 rounded-none data-[state=active]:bg-white/5 data-[state=active]:text-white">Stickers</TabsTrigger>
-                      <TabsTrigger value="gifs" className="flex-1 rounded-none data-[state=active]:bg-white/5 data-[state=active]:text-white">GIFs</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="stickers" className="p-2 h-64 overflow-y-auto mt-0">
-                      <div className="grid grid-cols-3 gap-2">
-                        {STICKERS.map((url, i) => (
-                          <button 
-                            key={i} 
-                            onClick={() => sendMediaMessage(url)}
-                            className="aspect-square relative hover:bg-white/5 rounded-xl transition-colors"
-                          >
-                            <Image src={url} alt="Sticker" fill className="object-contain p-1" unoptimized />
-                          </button>
-                        ))}
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="gifs" className="p-2 h-64 overflow-y-auto mt-0">
-                      <div className="grid grid-cols-2 gap-2">
-                        {GIFS.map((url, i) => (
-                          <button 
-                            key={i} 
-                            onClick={() => sendMediaMessage(url)}
-                            className="aspect-video relative hover:bg-white/5 rounded-xl transition-colors overflow-hidden"
-                          >
-                            <Image src={url} alt="GIF" fill className="object-cover" unoptimized />
-                          </button>
-                        ))}
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                </PopoverContent>
-              </Popover>
             </div>
             
             {isRecording ? (
@@ -473,6 +397,7 @@ export function ChatRoom() {
               <Input
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
+                onPaste={handlePaste}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
                     setReplyTo(null);
@@ -534,13 +459,9 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Logic disabled
+    // Logic disabled for testing
     if (e.button !== 0) return;
     e.stopPropagation();
-    // if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    // longPressTimer.current = setTimeout(() => {
-    //   setIsMenuOpen(true)
-    // }, 2000)
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -552,26 +473,14 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   }
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    // Swipe logic disabled
-    // startX.current = e.touches[0].clientX
-    // isSwiping.current = true
+    // Swipe logic disabled for testing
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    // Swipe logic disabled
-    // if (!isSwiping.current) return
-    // const currentX = e.touches[0].clientX
-    // const diff = currentX - startX.current
-    // if (diff < 0) {
-    //   setSwipeX(Math.max(diff, -100))
-    // }
+    // Swipe logic disabled for testing
   }
 
   const handleTouchEnd = () => {
-    // Swipe logic disabled
-    // if (swipeX <= -60) {
-    //   onReply()
-    // }
     setSwipeX(0)
     isSwiping.current = false
   }
@@ -600,15 +509,11 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onDoubleClick={(e) => {
-        // Double click logic disabled
         e.stopPropagation();
-        // onReply();
       }}
       onContextMenu={(e) => {
-        // Context menu logic disabled
         e.preventDefault()
         e.stopPropagation()
-        // setIsMenuOpen(true)
       }}
     >
       <div 
@@ -624,7 +529,7 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
         </span>
       )}
 
-      {/* Logic disabled: open={false} explicitly prevents the menu from showing on any interaction */}
+      {/* Explicitly disabled for now as requested */}
       <DropdownMenu open={false} onOpenChange={setIsMenuOpen}>
         <DropdownMenuTrigger asChild>
           <div 
@@ -634,7 +539,6 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerUp}
             onClick={(e) => {
-              // Standard click logic
               e.preventDefault();
               e.stopPropagation();
             }}
@@ -709,11 +613,11 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
             <>
               {msg.content && (
                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); setIsMenuOpen(false); }} className="gap-2 focus:bg-white/10 cursor-pointer">
-                  <Pencil className="w-4 h-4" /> Edit
+                  <Image src="https://picsum.photos/seed/edit/20/20" alt="edit" width={16} height={16} className="invert" /> Edit
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(); setIsMenuOpen(false); }} className="gap-2 text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer">
-                <Trash2 className="w-4 h-4" /> Unsend
+                <Image src="https://picsum.photos/seed/delete/20/20" alt="delete" width={16} height={16} className="invert" /> Unsend
               </DropdownMenuItem>
             </>
           )}
