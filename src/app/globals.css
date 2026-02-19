@@ -10,19 +10,19 @@
     --card-foreground: 0 0% 100%;
     --popover: 0 0% 7%;
     --popover-foreground: 0 0% 100%;
-    --primary: 326 100% 50%; /* Instagram-like pink/purple */
+    --primary: 326 100% 60%; /* More vibrant pink */
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 20%;
     --secondary-foreground: 0 0% 98%;
     --muted: 0 0% 15%;
     --muted-foreground: 0 0% 65%;
-    --accent: 210 100% 50%;
+    --accent: 210 100% 60%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 18%;
     --input: 0 0% 18%;
-    --ring: 326 100% 50%;
+    --ring: 326 100% 60%;
     --radius: 1.5rem;
   }
 }
@@ -37,16 +37,17 @@
 }
 
 .ig-input-pill {
-  @apply flex items-center gap-3 px-4 py-2 bg-transparent border border-border rounded-full hover:border-muted-foreground/50 transition-colors focus-within:border-muted-foreground;
+  @apply flex items-center gap-3 px-4 py-2 bg-transparent border border-white/20 rounded-full hover:border-white/40 transition-colors focus-within:border-white/60 bg-white/5;
 }
 
 .ig-bubble-me {
-  @apply rounded-[1.4rem] rounded-tr-[0.3rem] bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white shadow-md font-medium;
+  /* Updated to be more vibrant and slightly lighter */
+  @apply rounded-[1.4rem] rounded-tr-[0.3rem] bg-gradient-to-br from-[#A307BA] via-[#E21E53] to-[#FF8C37] text-white shadow-lg font-medium tracking-tight;
 }
 
 .ig-bubble-other {
-  /* Adjusted to be lighter for better visibility */
-  @apply rounded-[1.4rem] rounded-tl-[0.3rem] bg-[#363636] text-white shadow-sm;
+  /* Refined to be slightly lighter than before for maximum clarity */
+  @apply rounded-[1.4rem] rounded-tl-[0.3rem] bg-[#3a3a3a] text-white shadow-sm font-normal;
 }
 
 /* Custom scrollbar */

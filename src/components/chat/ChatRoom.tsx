@@ -20,7 +20,6 @@ import {
   Video
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { toast } from "@/hooks/use-toast"
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from "@/firebase"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
@@ -89,31 +88,31 @@ export function ChatRoom() {
     <div className="flex flex-col h-screen w-full max-w-lg mx-auto bg-black text-white relative">
       <WelcomeDialog isOpen={!displayName} onSave={updateDisplayName} />
 
-      {/* Instagram Fixed Header */}
+      {/* Instagram Header */}
       <header className="flex items-center justify-between px-4 h-16 border-b border-white/10 shrink-0 bg-black/80 backdrop-blur-md sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 -ml-2">
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-7 h-7" />
           </Button>
           <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8 border border-white/10">
+            <Avatar className="h-9 w-9 border border-white/10 ring-1 ring-white/5">
               <AvatarImage src={`https://picsum.photos/seed/${roomId}/100`} />
               <AvatarFallback>{roomName[0]}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
-              <span className="text-sm font-semibold leading-none">{roomName}</span>
+              <span className="text-[15px] font-bold leading-none">{roomName}</span>
               <span className="text-[11px] text-muted-foreground mt-0.5">Active now</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
             <Phone className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
             <Video className="w-6 h-6" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
             <Info className="w-6 h-6" />
           </Button>
         </div>
@@ -122,22 +121,22 @@ export function ChatRoom() {
       {/* Message List */}
       <ScrollArea ref={scrollRef} className="flex-1 px-4 py-4">
         <div className="flex flex-col justify-end min-h-full">
-          {/* Centered Profile Info at Top of History */}
+          {/* Centered Profile Info at Top */}
           <div className="flex flex-col items-center py-12 gap-4">
-            <Avatar className="h-24 w-24 border-2 border-white/5 ring-1 ring-white/10">
+            <Avatar className="h-24 w-24 border-2 border-white/5 ring-1 ring-white/10 shadow-2xl">
               <AvatarImage src={`https://picsum.photos/seed/${roomId}/200`} />
               <AvatarFallback className="text-2xl">{roomName[0]}</AvatarFallback>
             </Avatar>
             <div className="text-center">
-              <h2 className="text-xl font-bold">{roomName}</h2>
-              <p className="text-sm text-muted-foreground mt-1">CharcoalChat Group • {messages?.length || 0} messages</p>
-              <Button variant="secondary" size="sm" className="mt-4 rounded-lg bg-[#262626] hover:bg-[#363636] font-semibold">
+              <h2 className="text-2xl font-bold tracking-tight">{roomName}</h2>
+              <p className="text-sm text-muted-foreground mt-1">Instagram Group • {messages?.length || 0} messages</p>
+              <Button variant="secondary" size="sm" className="mt-4 rounded-lg bg-[#262626] hover:bg-[#363636] font-bold px-4">
                 View Profile
               </Button>
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 pb-4">
+          <div className="flex flex-col gap-1 pb-4">
             {messages?.map((msg, index) => {
               const isMe = msg.senderId === userId
               const isFirstInGroup = index === 0 || messages[index - 1].senderId !== msg.senderId
@@ -147,20 +146,22 @@ export function ChatRoom() {
                 <div 
                   key={msg.id} 
                   className={cn(
-                    "flex flex-col max-w-[80%] animate-message", 
+                    "flex flex-col max-w-[75%] animate-message", 
                     isMe ? "self-end items-end" : "self-start items-start",
                     isFirstInGroup && "mt-4"
                   )}
                 >
                   {!isMe && isFirstInGroup && (
-                    <span className="text-[11px] text-muted-foreground ml-3 mb-1 font-medium">
+                    <span className="text-[11px] text-muted-foreground ml-3 mb-1 font-semibold">
                       {msg.senderDisplayName}
                     </span>
                   )}
                   <div className={cn(
-                    "px-4 py-2.5 text-[15px] leading-[1.35]",
+                    "px-4 py-2.5 text-[15px] leading-[1.3] transition-all",
                     isMe ? "ig-bubble-me" : "ig-bubble-other",
-                    !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]")
+                    !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
+                    isMe && !isLastInGroup && "mb-0.5",
+                    !isMe && !isLastInGroup && "mb-0.5"
                   )}>
                     {msg.content}
                   </div>
@@ -171,40 +172,42 @@ export function ChatRoom() {
         </div>
       </ScrollArea>
 
-      {/* Instagram Pill Footer */}
+      {/* Footer Input Bar */}
       <footer className="p-4 bg-black sticky bottom-0 z-20">
         <form 
           onSubmit={handleSendMessage} 
-          className="ig-input-pill"
+          className="ig-input-pill shadow-xl"
         >
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 -ml-1 rounded-full bg-primary/10 hover:bg-primary/20">
-            <Camera className="w-5 h-5 text-white" />
-          </Button>
+          <div className="flex items-center gap-1">
+             <Button type="button" variant="ghost" size="icon" className="h-8 w-8 -ml-1 rounded-full bg-blue-500 hover:bg-blue-600 transition-colors">
+              <Camera className="w-5 h-5 text-white" />
+            </Button>
+          </div>
           
           <Input
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Message..."
-            className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-muted-foreground h-10 text-[15px] p-0"
+            className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 h-10 text-[15px] p-0 font-normal"
           />
 
           {inputText.trim() ? (
             <Button 
               type="submit" 
               variant="ghost" 
-              className="text-accent font-bold text-[15px] p-0 hover:bg-transparent hover:text-accent/80 active:scale-95 transition-all"
+              className="text-[#0095f6] font-bold text-[15px] p-0 pr-1 hover:bg-transparent hover:text-blue-400 active:scale-95 transition-all"
             >
               Send
             </Button>
           ) : (
-            <div className="flex items-center gap-1.5">
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10">
                 <Mic className="w-5 h-5" />
               </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10">
                 <ImageIcon className="w-5 h-5" />
               </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10">
                 <Heart className="w-5 h-5" />
               </Button>
             </div>
