@@ -10,10 +10,6 @@ import { Button } from "@/components/ui/button"
 import { 
   ChevronLeft, 
   Camera, 
-  Mic, 
-  Image as ImageIcon, 
-  Heart, 
-  Smile, 
   Loader2,
   X,
   CornerDownRight,
@@ -419,7 +415,7 @@ export function ChatRoom() {
               autoFocus
             />
 
-            {(inputText.trim() || editingMessage) ? (
+            {(inputText.trim() || editingMessage) && (
               <Button 
                 type="submit" 
                 variant="ghost" 
@@ -427,21 +423,6 @@ export function ChatRoom() {
               >
                 {editingMessage ? "Done" : "Send"}
               </Button>
-            ) : (
-              <div className="flex items-center gap-1 pr-1 flex-shrink-0">
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
-                  <Mic className="w-5 h-5" />
-                </Button>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
-                  <ImageIcon className="w-5 h-5" />
-                </Button>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
-                  <Smile className="w-5 h-5" />
-                </Button>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
-                  <Heart className="w-5 h-5" />
-                </Button>
-              </div>
             )}
           </form>
         </div>
