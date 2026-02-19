@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { collection, query, orderBy, serverTimestamp, doc } from "firebase/firestore"
+import { collection, query, orderBy, serverTimestamp } from "firebase/firestore"
 import { useChatSession } from "@/hooks/use-chat-session"
 import { WelcomeDialog } from "./WelcomeDialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -19,8 +19,6 @@ import {
   Play,
   Pause,
   SendHorizontal,
-  ZoomIn,
-  ZoomOut,
   Maximize2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -28,14 +26,12 @@ import {
   useFirestore, 
   useCollection, 
   useMemoFirebase, 
-  addDocumentNonBlocking,
-  updateDocumentNonBlocking
+  addDocumentNonBlocking
 } from "@/firebase"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Slider } from "@/components/ui/slider"
 
 interface Message {
   id: string
@@ -60,7 +56,12 @@ export function ChatRoom() {
   const [inputText, setInputText] = useState("")
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
-  const [zoomLevel, setZoomLevel] = useState(1)
+  
+  // Image Preview Interaction State
+  const [scale, setScale] = useState(1)
+  const [translate, setTranslate] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [lastPos, setLastPos] = useState({ x: 0, y: 0 })
   
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
@@ -96,6 +97,46 @@ export function ChatRoom() {
       }
     }
   }, [messages])
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey) {
+      e.preventDefault()
+      const delta = -e.deltaY * 0.01
+      setScale(prev => Math.min(Math.max(1, prev + delta), 8))
+    } else if (scale > 1) {
+      setTranslate(prev => ({
+        x: prev.x - e.deltaX,
+        y: prev.y - e.deltaY
+      }))
+    }
+  }
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (scale > 1) {
+      setIsDragging(true)
+      setLastPos({ x: e.clientX, y: e.clientY })
+      const target = e.currentTarget as HTMLElement
+      target.setPointerCapture(e.pointerId)
+    }
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (isDragging) {
+      const deltaX = e.clientX - lastPos.x
+      const deltaY = e.clientY - lastPos.y
+      setTranslate(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }))
+      setLastPos({ x: e.clientX, y: e.clientY })
+    }
+  }
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setIsDragging(false)
+    const target = e.currentTarget as HTMLElement
+    target.releasePointerCapture(e.pointerId)
+  }
 
   const processImageFile = (file: File) => {
     if (file.size > 1 * 1024 * 1024) {
@@ -144,12 +185,11 @@ export function ChatRoom() {
         videoRef.current.srcObject = stream
       }
     } catch (error) {
-      console.error('Error accessing camera:', error)
       setHasCameraPermission(false)
       toast({
         variant: 'destructive',
         title: 'Camera Access Denied',
-        description: 'Please enable camera permissions in your browser settings.',
+        description: 'Please enable camera permissions.',
       })
     }
   }
@@ -319,7 +359,7 @@ export function ChatRoom() {
         </div>
       </ScrollArea>
 
-      <footer className="fixed bottom-0 left-0 right-0 w-full bg-black/95 backdrop-blur-xl border-t border-white/5 pb-safe z-30 transition-all">
+      <footer className="fixed bottom-0 left-0 right-0 w-full bg-black/95 backdrop-blur-xl border-t border-white/5 pb-safe z-30">
         <div className="max-w-2xl mx-auto p-4 flex flex-col gap-2">
           
           {selectedImage && (
@@ -350,7 +390,7 @@ export function ChatRoom() {
                 type="button" 
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 rounded-full hover:bg-white/10 transition-all"
+                className="h-8 w-8 rounded-full hover:bg-white/10"
                 onClick={() => fileInputRef.current?.click()}
                 title="Send Image"
               >
@@ -360,7 +400,7 @@ export function ChatRoom() {
                 type="button" 
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 rounded-full hover:bg-white/10 transition-all"
+                className="h-8 w-8 rounded-full hover:bg-white/10"
                 onClick={openCamera}
                 title="Camera"
               >
@@ -426,7 +466,6 @@ export function ChatRoom() {
         </div>
       </footer>
 
-      {/* Camera Modal */}
       <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
         <DialogContent className="sm:max-w-md bg-black border-white/10 p-0 overflow-hidden">
           <DialogHeader className="p-4 border-b border-white/10">
@@ -446,7 +485,7 @@ export function ChatRoom() {
                 <Alert variant="destructive">
                   <AlertTitle>Camera Access Required</AlertTitle>
                   <AlertDescription>
-                    Please allow camera access in your browser settings to take photos.
+                    Please allow camera access in your browser settings.
                   </AlertDescription>
                 </Alert>
               </div>
@@ -465,11 +504,11 @@ export function ChatRoom() {
         </DialogContent>
       </Dialog>
 
-      {/* Image Preview Modal */}
       <Dialog open={!!previewImageUrl} onOpenChange={(open) => {
         if (!open) {
           setPreviewImageUrl(null)
-          setZoomLevel(1)
+          setScale(1)
+          setTranslate({ x: 0, y: 0 })
         }
       }}>
         <DialogContent className="max-w-4xl w-[95vw] h-[85vh] bg-black/95 border-white/10 p-0 overflow-hidden flex flex-col">
@@ -481,34 +520,9 @@ export function ChatRoom() {
                   variant="ghost" 
                   size="icon" 
                   className="rounded-full h-8 w-8"
-                  onClick={() => setZoomLevel(prev => Math.max(1, prev - 0.5))}
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </Button>
-                <div className="w-32 mx-2">
-                  <Slider 
-                    value={[zoomLevel]} 
-                    min={1} 
-                    max={4} 
-                    step={0.1} 
-                    onValueChange={([val]) => setZoomLevel(val)} 
-                  />
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="rounded-full h-8 w-8"
-                  onClick={() => setZoomLevel(prev => Math.min(4, prev + 0.5))}
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="rounded-full h-8 w-8 ml-2"
                   onClick={() => {
                     setPreviewImageUrl(null)
-                    setZoomLevel(1)
+                    setScale(1)
                   }}
                 >
                   <X className="w-5 h-5" />
@@ -516,26 +530,35 @@ export function ChatRoom() {
               </div>
             </div>
           </DialogHeader>
-          <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-black cursor-zoom-out" onClick={() => {
-            setPreviewImageUrl(null)
-            setZoomLevel(1)
-          }}>
+          <div 
+            className="flex-1 overflow-hidden relative bg-black select-none touch-none"
+            onWheel={handleWheel}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+          >
             {previewImageUrl && (
               <div 
-                className="relative transition-transform duration-200 ease-out"
-                style={{ transform: `scale(${zoomLevel})` }}
-                onClick={(e) => e.stopPropagation()}
+                className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                style={{ 
+                  transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
+                  transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+                }}
               >
                 <Image 
                   src={previewImageUrl} 
                   alt="Full size preview" 
                   width={1200} 
                   height={1200} 
-                  className="max-w-full max-h-[70vh] object-contain rounded-md"
+                  className="max-w-full max-h-full object-contain rounded-md"
                   unoptimized 
                 />
               </div>
             )}
+          </div>
+          <div className="p-4 text-center text-[11px] text-muted-foreground border-t border-white/5 bg-black/50">
+            Use two fingers to zoom and pan
           </div>
         </DialogContent>
       </Dialog>
