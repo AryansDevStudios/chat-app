@@ -451,8 +451,7 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
     // Only handle left click / touch for long press
     if (e.button !== 0) return;
     
-    // STOP PROPAGATION here to prevent the DropdownMenuTrigger from automatically 
-    // opening the menu on standard left clicks.
+    // Stop propagation here to ensure standard clicks don't bubble to triggering Radix's default behavior
     e.stopPropagation();
 
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
@@ -492,7 +491,7 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
 
   const toggleAudio = (e: React.MouseEvent) => {
     e.preventDefault()
-    e.stopPropagation()
+    e.stopPropagation() // Critical to stop bubble events
     if (!audioRef.current) return
     if (isPlaying) {
       audioRef.current.pause()
@@ -513,12 +512,13 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
-      onDoubleClick={onReply}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onReply();
+      }}
       onContextMenu={(e) => {
         e.preventDefault()
+        e.stopPropagation()
         setIsMenuOpen(true)
       }}
     >
@@ -540,9 +540,11 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
           <div 
             role="button"
             tabIndex={0}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+            // Block standard clicks from opening the menu
             onClick={(e) => {
-              // Ensure we stop propagation for any standard click events
-              // that might have leaked through.
               e.preventDefault();
               e.stopPropagation();
             }}
@@ -610,17 +612,17 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align={isMe ? "end" : "start"} className="bg-[#262626] border-white/10 text-white min-w-[120px]">
-          <DropdownMenuItem onClick={onReply} className="gap-2 focus:bg-white/10 cursor-pointer">
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onReply(); setIsMenuOpen(false); }} className="gap-2 focus:bg-white/10 cursor-pointer">
             <Reply className="w-4 h-4" /> Reply
           </DropdownMenuItem>
           {isMe && (
             <>
               {msg.content && (
-                <DropdownMenuItem onClick={onEdit} className="gap-2 focus:bg-white/10 cursor-pointer">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); setIsMenuOpen(false); }} className="gap-2 focus:bg-white/10 cursor-pointer">
                   <Pencil className="w-4 h-4" /> Edit
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={() => onDelete()} className="gap-2 text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer">
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(); setIsMenuOpen(false); }} className="gap-2 text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer">
                 <Trash2 className="w-4 h-4" /> Unsend
               </DropdownMenuItem>
             </>
