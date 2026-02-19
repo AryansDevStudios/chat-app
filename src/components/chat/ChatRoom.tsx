@@ -640,6 +640,7 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
 }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const clickTimer = useRef<NodeJS.Timeout | null>(null)
 
   const toggleAudio = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -657,6 +658,25 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
     if (isMobile) {
       e.preventDefault()
       onReply()
+    }
+  }
+
+  const handleImageInteraction = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (isMobile) {
+      // Distinguish between single and double tap for images on mobile
+      if (clickTimer.current) {
+        clearTimeout(clickTimer.current)
+        clickTimer.current = null
+        onReply()
+      } else {
+        clickTimer.current = setTimeout(() => {
+          onPreviewImage(msg.imageUrl!)
+          clickTimer.current = null
+        }, 250)
+      }
+    } else {
+      onPreviewImage(msg.imageUrl!)
     }
   }
 
@@ -703,10 +723,7 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
         {msg.imageUrl && (
           <div 
             className="relative w-full min-h-[150px] max-w-sm cursor-zoom-in group"
-            onClick={(e) => {
-              e.stopPropagation()
-              onPreviewImage(msg.imageUrl!)
-            }}
+            onClick={handleImageInteraction}
           >
             <Image 
               src={msg.imageUrl} 
