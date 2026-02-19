@@ -448,9 +448,13 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Only handle left click / touch
+    // Only handle left click / touch for long press
     if (e.button !== 0) return;
     
+    // STOP PROPAGATION here to prevent the DropdownMenuTrigger from automatically 
+    // opening the menu on standard left clicks.
+    e.stopPropagation();
+
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     longPressTimer.current = setTimeout(() => {
       setIsMenuOpen(true)
@@ -533,12 +537,12 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
 
       <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <DropdownMenuTrigger asChild>
-          {/* We wrap in a button to prevent standard click triggering while allowing context menu */}
           <div 
             role="button"
             tabIndex={0}
             onClick={(e) => {
-              // Strictly prevent the menu from opening on standard click
+              // Ensure we stop propagation for any standard click events
+              // that might have leaked through.
               e.preventDefault();
               e.stopPropagation();
             }}
