@@ -19,7 +19,8 @@ import {
   Play,
   Pause,
   SendHorizontal,
-  Maximize2
+  Maximize2,
+  Reply
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -32,6 +33,7 @@ import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 interface Message {
   id: string
@@ -51,11 +53,13 @@ interface Message {
 export function ChatRoom() {
   const db = useFirestore()
   const { toast } = useToast()
+  const isMobile = useIsMobile()
   const { userId, displayName, roomId, isLoaded, updateDisplayName, goHome } = useChatSession()
   
   const [inputText, setInputText] = useState("")
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
+  const [replyTarget, setReplyTarget] = useState<{ id: string, content: string, senderDisplayName: string } | null>(null)
   
   // Image Preview Interaction State (Mobile Optimized)
   const [scale, setScale] = useState(1)
@@ -291,6 +295,12 @@ export function ChatRoom() {
       roomId: roomId
     }
 
+    if (replyTarget) {
+      messageData.replyToId = replyTarget.id
+      messageData.replyToContent = replyTarget.content
+      messageData.replyToSenderDisplayName = replyTarget.senderDisplayName
+    }
+
     const messagesRef = collection(db, "rooms", roomId, "messages")
     addDocumentNonBlocking(messagesRef, messageData)
 
@@ -300,6 +310,7 @@ export function ChatRoom() {
     setInputText("")
     setSelectedImage(null)
     setAudioBase64(null)
+    setReplyTarget(null)
   }
 
   const handleShare = async () => {
@@ -314,6 +325,17 @@ export function ChatRoom() {
     }
     await navigator.clipboard.writeText(url);
     toast({ title: "Link Copied", description: "Chat room link copied to clipboard!" });
+  }
+
+  const handleReplyToMessage = (msg: Message) => {
+    setReplyTarget({
+      id: msg.id,
+      content: msg.content || (msg.imageUrl ? "📷 Photo" : msg.audioUrl ? "🎤 Voice Message" : ""),
+      senderDisplayName: msg.senderDisplayName
+    })
+    if (editableInputRef.current) {
+      editableInputRef.current.focus()
+    }
   }
 
   if (!isLoaded) {
@@ -358,6 +380,8 @@ export function ChatRoom() {
                 isFirstInGroup={index === 0 || messages[index - 1].senderId !== msg.senderId}
                 isLastInGroup={index === messages.length - 1 || messages[index + 1].senderId !== msg.senderId}
                 onPreviewImage={setPreviewImageUrl}
+                onReply={() => handleReplyToMessage(msg)}
+                isMobile={isMobile}
               />
             ))}
           </div>
@@ -367,6 +391,22 @@ export function ChatRoom() {
       <footer className="fixed bottom-0 left-0 right-0 w-full bg-black/95 backdrop-blur-xl border-t border-white/5 pb-safe z-30">
         <div className="max-w-2xl mx-auto p-4 flex flex-col gap-2">
           
+          {replyTarget && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-white/5 border-l-2 border-primary rounded-t-xl animate-in slide-in-from-bottom-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-primary font-bold uppercase truncate">
+                  Replying to {replyTarget.senderDisplayName}
+                </p>
+                <p className="text-xs text-white/60 truncate italic">
+                  {replyTarget.content}
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setReplyTarget(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
           {selectedImage && (
             <div className="relative w-24 h-24 mb-2 rounded-xl overflow-hidden border border-white/20 animate-in zoom-in-95">
               <Image src={selectedImage} alt="Preview" fill className="object-cover" unoptimized />
@@ -570,12 +610,14 @@ export function ChatRoom() {
   )
 }
 
-function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImage }: { 
+function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImage, onReply, isMobile }: { 
   msg: Message, 
   isMe: boolean, 
   isFirstInGroup: boolean,
   isLastInGroup: boolean,
-  onPreviewImage: (url: string) => void
+  onPreviewImage: (url: string) => void,
+  onReply: () => void,
+  isMobile: boolean
 }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -592,13 +634,21 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
     setIsPlaying(!isPlaying)
   }
 
+  const handleBubbleDoubleClick = (e: React.MouseEvent | React.TouchEvent) => {
+    if (isMobile) {
+      e.preventDefault()
+      onReply()
+    }
+  }
+
   return (
     <div 
       className={cn(
-        "flex flex-col max-w-[85%] lg:max-w-[75%] animate-message relative", 
+        "flex flex-col max-w-[85%] lg:max-w-[75%] animate-message relative select-none", 
         isMe ? "self-end items-end" : "self-start items-start",
         isFirstInGroup && "mt-6"
       )}
+      onDoubleClick={handleBubbleDoubleClick}
     >
       {!isMe && isFirstInGroup && (
         <span className="text-[11px] text-muted-foreground ml-3 mb-1 font-semibold uppercase tracking-wider">
@@ -617,10 +667,23 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
           msg.audioUrl && "min-w-[200px]"
         )}
       >
+        {msg.replyToId && (
+          <div className="px-3 pt-2 pb-1 opacity-70 border-b border-white/10 bg-black/20 flex items-center gap-2 max-w-full">
+            <Reply className="w-3 h-3 shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-[10px] font-bold truncate">{msg.replyToSenderDisplayName}</span>
+              <span className="text-[10px] truncate italic">{msg.replyToContent}</span>
+            </div>
+          </div>
+        )}
+
         {msg.imageUrl && (
           <div 
             className="relative w-full min-h-[150px] max-w-sm cursor-zoom-in group"
-            onClick={() => onPreviewImage(msg.imageUrl!)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onPreviewImage(msg.imageUrl!)
+            }}
           >
             <Image 
               src={msg.imageUrl} 
