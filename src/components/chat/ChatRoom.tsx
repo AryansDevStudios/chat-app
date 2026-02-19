@@ -322,7 +322,7 @@ export function ChatRoom() {
         </div>
       </header>
 
-      <ScrollArea ref={scrollRef} className="flex-1">
+      <ScrollArea ref={scrollRef} className="flex-1 pb-32">
         <div className="flex flex-col max-w-2xl mx-auto px-4 py-8 min-h-full">
           <div className="flex flex-col gap-1 pb-12">
             {messages?.map((msg, index) => (
@@ -338,7 +338,7 @@ export function ChatRoom() {
         </div>
       </ScrollArea>
 
-      <footer className="w-full bg-black shrink-0 border-t border-white/5 pb-safe z-30">
+      <footer className="fixed bottom-0 left-0 right-0 w-full bg-black/95 backdrop-blur-xl border-t border-white/5 pb-safe z-30 transition-all">
         <div className="max-w-2xl mx-auto p-4 flex flex-col gap-2">
           
           {replyTo && (
