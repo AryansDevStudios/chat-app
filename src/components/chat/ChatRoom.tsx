@@ -105,11 +105,19 @@ export function ChatRoom() {
     const element = document.getElementById(`msg-${msgId}`)
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" })
-      // Brief highlight effect
-      element.style.backgroundColor = "rgba(255, 255, 255, 0.15)"
+      // Colorful highlight effect (vibrant purple/pink)
+      element.style.backgroundColor = "rgba(163, 7, 186, 0.3)"
+      element.style.boxShadow = "0 0 40px rgba(163, 7, 186, 0.6)"
+      element.style.borderRadius = "1.5rem"
+      element.style.transition = "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
+      element.style.zIndex = "10"
+      
       setTimeout(() => {
         element.style.backgroundColor = ""
-      }, 1500)
+        element.style.boxShadow = ""
+        element.style.borderRadius = ""
+        element.style.zIndex = ""
+      }, 2000)
     }
   }
 
