@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Sparkles } from "lucide-react"
+import { Instagram } from "lucide-react"
 
 interface WelcomeDialogProps {
   isOpen: boolean
@@ -23,29 +23,29 @@ export function WelcomeDialog({ isOpen, onSave }: WelcomeDialogProps) {
 
   return (
     <Dialog open={isOpen}>
-      <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur-2xl border-white/5 rounded-[2rem] p-8">
+      <DialogContent className="sm:max-w-md bg-[#121212] border-white/10 rounded-[1.5rem] p-8">
         <DialogHeader className="space-y-4 text-center">
-          <div className="mx-auto w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center">
-            <Sparkles className="w-8 h-8 text-primary" />
+          <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] flex items-center justify-center">
+            <Instagram className="w-9 h-9 text-white" />
           </div>
-          <div className="space-y-2">
-            <DialogTitle className="text-3xl font-bold tracking-tight text-foreground">Pick a name</DialogTitle>
-            <DialogDescription className="text-muted-foreground text-base">
-              Enter a display name to start chatting with others in real-time.
+          <div className="space-y-1">
+            <DialogTitle className="text-2xl font-bold tracking-tight text-white">Direct</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-sm">
+              Enter your name to start messaging in this group.
             </DialogDescription>
           </div>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <Input
-            placeholder="Alex, Sarah, etc..."
+            placeholder="Username"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="bg-muted/50 border-white/5 focus-visible:ring-primary h-14 rounded-2xl px-6 text-lg placeholder:text-muted-foreground/30"
+            className="bg-[#262626] border-white/5 focus-visible:ring-muted-foreground/30 h-11 rounded-md px-4 text-sm placeholder:text-muted-foreground/50"
             autoFocus
           />
           <DialogFooter>
-            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-bold rounded-2xl h-14 text-lg shadow-2xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95">
-              Enter Room
+            <Button type="submit" className="w-full bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold rounded-md h-10 text-sm transition-all active:scale-95">
+              Next
             </Button>
           </DialogFooter>
         </form>

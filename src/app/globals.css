@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 0 0% 7%;
-    --foreground: 0 0% 94%;
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 94%;
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 94%;
-    --primary: 280 100% 60%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 326 100% 50%; /* Instagram-like pink/purple */
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 94%;
     --muted: 0 0% 15%;
     --muted-foreground: 0 0% 60%;
-    --accent: 280 100% 60%;
+    --accent: 210 100% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 280 100% 60%;
-    --radius: 1.25rem;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 326 100% 50%;
+    --radius: 1.5rem;
   }
 }
 
@@ -36,40 +36,34 @@
   }
 }
 
-.glass-panel {
-  @apply bg-background/40 backdrop-blur-xl border border-white/10 shadow-2xl;
+.ig-input-pill {
+  @apply flex items-center gap-3 px-4 py-2 bg-transparent border border-border rounded-full hover:border-muted-foreground/50 transition-colors focus-within:border-muted-foreground;
 }
 
-.chat-bubble-user {
-  @apply rounded-2xl rounded-tr-none bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20 animate-in fade-in slide-in-from-right-2 duration-300;
+.ig-bubble-me {
+  @apply rounded-[1.4rem] rounded-tr-[0.3rem] bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white shadow-sm;
 }
 
-.chat-bubble-other {
-  @apply rounded-2xl rounded-tl-none bg-secondary/80 backdrop-blur-sm text-secondary-foreground shadow-md animate-in fade-in slide-in-from-left-2 duration-300;
-}
-
-.floating-input-bar {
-  @apply fixed bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] max-w-2xl z-50;
-  @apply bg-background/40 backdrop-blur-2xl border border-white/10 p-2 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)];
+.ig-bubble-other {
+  @apply rounded-[1.4rem] rounded-tl-[0.3rem] bg-[#262626] text-white shadow-sm;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
+  width: 4px;
 }
 ::-webkit-scrollbar-track {
   @apply bg-transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+  @apply bg-white/10 rounded-full;
 }
 
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
+@keyframes message-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.animate-float {
-  animation: float 6s ease-in-out infinite;
+.animate-message {
+  animation: message-in 0.2s ease-out forwards;
 }

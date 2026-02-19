@@ -7,10 +7,22 @@ import { WelcomeDialog } from "./WelcomeDialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Send, Hash, Users, Share2, Loader2, MessageSquare, Sparkles } from "lucide-react"
+import { 
+  ChevronLeft, 
+  Info, 
+  Camera, 
+  Mic, 
+  Image as ImageIcon, 
+  Heart, 
+  Smile, 
+  Loader2,
+  Phone,
+  Video
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from "@/firebase"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface Message {
   id: string
@@ -46,8 +58,8 @@ export function ChatRoom() {
     }
   }, [messages])
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSendMessage = (e?: React.FormEvent) => {
+    e?.preventDefault()
     if (!inputText.trim() || !userId || !displayName || !roomId || !db) return
 
     const messageData = {
@@ -63,136 +75,142 @@ export function ChatRoom() {
     setInputText("")
   }
 
-  const copyRoomLink = () => {
-    const url = window.location.href
-    navigator.clipboard.writeText(url)
-    toast({
-      title: "Invite copied",
-      description: "Send this link to your friends to chat."
-    })
-  }
-
   if (!isLoaded) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen w-full bg-background">
-        <div className="relative">
-          <Loader2 className="w-12 h-12 animate-spin text-primary opacity-20" />
-          <div className="absolute inset-0 flex items-center justify-center">
-             <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-          </div>
-        </div>
-        <p className="mt-4 text-sm font-medium text-muted-foreground tracking-widest uppercase animate-pulse">Initializing</p>
+      <div className="flex items-center justify-center h-screen w-full bg-black">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground/50" />
       </div>
     )
   }
 
+  const roomName = roomId?.includes('_') ? roomId.split('_')[1].toUpperCase() : 'General'
+
   return (
-    <div className="flex flex-col h-screen w-full max-w-5xl mx-auto relative overflow-hidden px-4">
+    <div className="flex flex-col h-screen w-full max-w-lg mx-auto bg-black text-white relative">
       <WelcomeDialog isOpen={!displayName} onSave={updateDisplayName} />
 
-      {/* Header */}
-      <header className="flex items-center justify-between px-2 py-6 z-10">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-primary/60 flex items-center justify-center shadow-2xl shadow-primary/40 rotate-3 transition-transform hover:rotate-0">
-            <Hash className="text-white w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
-              {roomId?.includes('_') ? roomId.split('_')[1].toUpperCase() : 'GENERAL'}
-            </h1>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                <Users className="w-3 h-3" /> 
-                {displayName}
-              </p>
+      {/* Instagram Fixed Header */}
+      <header className="flex items-center justify-between px-4 h-16 border-b border-white/10 shrink-0 bg-black/80 backdrop-blur-md sticky top-0 z-20">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 -ml-2">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+          <div className="flex items-center gap-3">
+            <Avatar className="h-8 w-8 border border-white/10">
+              <AvatarImage src={`https://picsum.photos/seed/${roomId}/100`} />
+              <AvatarFallback>{roomName[0]}</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold leading-none">{roomName}</span>
+              <span className="text-[11px] text-muted-foreground mt-0.5">Active now</span>
             </div>
           </div>
         </div>
-        <Button 
-          variant="outline" 
-          size="icon" 
-          onClick={copyRoomLink} 
-          className="rounded-2xl border-white/5 bg-white/5 hover:bg-white/10 transition-all active:scale-95"
-        >
-          <Share2 className="w-4 h-4 text-foreground/80" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+            <Phone className="w-5 h-5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+            <Video className="w-6 h-6" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+            <Info className="w-6 h-6" />
+          </Button>
+        </div>
       </header>
 
       {/* Message List */}
-      <ScrollArea ref={scrollRef} className="flex-1 mb-32 rounded-[2rem] bg-white/[0.02] border border-white/5">
-        <div className="flex flex-col gap-8 p-6">
-          {isMessagesLoading ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-4 opacity-20">
-              <Loader2 className="w-8 h-8 animate-spin" />
-              <span className="text-xs font-bold tracking-widest uppercase">Fetching history</span>
+      <ScrollArea ref={scrollRef} className="flex-1 px-4 py-4">
+        <div className="flex flex-col justify-end min-h-full">
+          {/* Centered Profile Info at Top of History */}
+          <div className="flex flex-col items-center py-12 gap-4">
+            <Avatar className="h-24 w-24 border-2 border-white/5 ring-1 ring-white/10">
+              <AvatarImage src={`https://picsum.photos/seed/${roomId}/200`} />
+              <AvatarFallback className="text-2xl">{roomName[0]}</AvatarFallback>
+            </Avatar>
+            <div className="text-center">
+              <h2 className="text-xl font-bold">{roomName}</h2>
+              <p className="text-sm text-muted-foreground mt-1">CharcoalChat Group • {messages?.length || 0} messages</p>
+              <Button variant="secondary" size="sm" className="mt-4 rounded-lg bg-[#262626] hover:bg-[#363636] font-semibold">
+                View Profile
+              </Button>
             </div>
-          ) : !messages || messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-32 text-center space-y-6">
-              <div className="relative">
-                <div className="p-8 rounded-[2.5rem] bg-gradient-to-b from-white/10 to-transparent border border-white/10 animate-float">
-                  <MessageSquare className="w-12 h-12 text-primary/50" />
-                </div>
-                <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-primary animate-pulse" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold">New Beginnings</h3>
-                <p className="text-sm text-muted-foreground max-w-[240px] leading-relaxed">
-                  Start a conversation and make some noise. Everyone starts somewhere.
-                </p>
-              </div>
-            </div>
-          ) : (
-            messages.map((msg, index) => {
+          </div>
+
+          <div className="flex flex-col gap-1.5 pb-4">
+            {messages?.map((msg, index) => {
               const isMe = msg.senderId === userId
-              const showName = index === 0 || messages[index - 1].senderId !== msg.senderId
+              const isFirstInGroup = index === 0 || messages[index - 1].senderId !== msg.senderId
+              const isLastInGroup = index === messages.length - 1 || messages[index + 1].senderId !== msg.senderId
               
               return (
                 <div 
                   key={msg.id} 
                   className={cn(
-                    "flex flex-col gap-1.5 transition-all duration-500", 
+                    "flex flex-col max-w-[80%] animate-message", 
                     isMe ? "self-end items-end" : "self-start items-start",
-                    !showName && "mt-[-1.5rem]"
+                    isFirstInGroup && "mt-4"
                   )}
                 >
-                  {showName && (
-                    <span className="text-[10px] font-bold text-muted-foreground/50 tracking-widest uppercase ml-1 mb-1">
-                      {isMe ? "You" : msg.senderDisplayName}
+                  {!isMe && isFirstInGroup && (
+                    <span className="text-[11px] text-muted-foreground ml-3 mb-1 font-medium">
+                      {msg.senderDisplayName}
                     </span>
                   )}
                   <div className={cn(
-                    "px-5 py-3 text-sm md:text-[15px] leading-relaxed max-w-[85%] md:max-w-[70%]",
-                    isMe ? "chat-bubble-user" : "chat-bubble-other"
+                    "px-4 py-2.5 text-[15px] leading-[1.35]",
+                    isMe ? "ig-bubble-me" : "ig-bubble-other",
+                    !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]")
                   )}>
                     {msg.content}
                   </div>
                 </div>
               )
-            })
-          )}
+            })}
+          </div>
         </div>
       </ScrollArea>
 
-      {/* Floating Input Bar */}
-      <div className="floating-input-bar">
-        <form onSubmit={handleSendMessage} className="flex gap-2 p-1">
+      {/* Instagram Pill Footer */}
+      <footer className="p-4 bg-black sticky bottom-0 z-20">
+        <form 
+          onSubmit={handleSendMessage} 
+          className="ig-input-pill"
+        >
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 -ml-1 rounded-full bg-primary/10 hover:bg-primary/20">
+            <Camera className="w-5 h-5 text-white" />
+          </Button>
+          
           <Input
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Write something..."
-            className="flex-1 bg-transparent border-none focus-visible:ring-0 text-foreground placeholder:text-muted-foreground/40 h-12 px-4 text-base"
+            placeholder="Message..."
+            className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-muted-foreground h-10 text-[15px] p-0"
           />
-          <Button 
-            type="submit" 
-            disabled={!inputText.trim() || !displayName}
-            size="icon"
-            className="rounded-[1.5rem] w-12 h-12 bg-primary hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all duration-300 shadow-xl shadow-primary/30 group"
-          >
-            <Send className="w-5 h-5 text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </Button>
+
+          {inputText.trim() ? (
+            <Button 
+              type="submit" 
+              variant="ghost" 
+              className="text-accent font-bold text-[15px] p-0 hover:bg-transparent hover:text-accent/80 active:scale-95 transition-all"
+            >
+              Send
+            </Button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                <Mic className="w-5 h-5" />
+              </Button>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                <ImageIcon className="w-5 h-5" />
+              </Button>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                <Heart className="w-5 h-5" />
+              </Button>
+            </div>
+          )}
         </form>
-      </div>
+      </footer>
     </div>
   )
 }
