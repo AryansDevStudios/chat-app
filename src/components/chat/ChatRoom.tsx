@@ -448,17 +448,13 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Only handle left click / touch for long press
+    // Logic disabled
     if (e.button !== 0) return;
-    
-    // Stop propagation here to ensure standard clicks don't bubble to triggering Radix's default behavior
     e.stopPropagation();
-
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    longPressTimer.current = setTimeout(() => {
-      // Logic for long-press disabled temporarily to troubleshoot interaction issues
-      // setIsMenuOpen(true)
-    }, 2000)
+    // if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    // longPressTimer.current = setTimeout(() => {
+    //   setIsMenuOpen(true)
+    // }, 2000)
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -470,30 +466,33 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   }
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX
-    isSwiping.current = true
+    // Swipe logic disabled
+    // startX.current = e.touches[0].clientX
+    // isSwiping.current = true
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isSwiping.current) return
-    const currentX = e.touches[0].clientX
-    const diff = currentX - startX.current
-    if (diff < 0) {
-      setSwipeX(Math.max(diff, -100))
-    }
+    // Swipe logic disabled
+    // if (!isSwiping.current) return
+    // const currentX = e.touches[0].clientX
+    // const diff = currentX - startX.current
+    // if (diff < 0) {
+    //   setSwipeX(Math.max(diff, -100))
+    // }
   }
 
   const handleTouchEnd = () => {
-    if (swipeX <= -60) {
-      onReply()
-    }
+    // Swipe logic disabled
+    // if (swipeX <= -60) {
+    //   onReply()
+    // }
     setSwipeX(0)
     isSwiping.current = false
   }
 
   const toggleAudio = (e: React.MouseEvent) => {
     e.preventDefault()
-    e.stopPropagation() // Critical to stop bubble events
+    e.stopPropagation() 
     if (!audioRef.current) return
     if (isPlaying) {
       audioRef.current.pause()
@@ -515,13 +514,15 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onDoubleClick={(e) => {
+        // Double click logic disabled
         e.stopPropagation();
-        onReply();
+        // onReply();
       }}
       onContextMenu={(e) => {
+        // Context menu logic disabled
         e.preventDefault()
         e.stopPropagation()
-        setIsMenuOpen(true)
+        // setIsMenuOpen(true)
       }}
     >
       <div 
@@ -545,9 +546,8 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerUp}
-            // Explicitly block standard clicks and pointer up/down from triggering the menu
-            // This ensures standard left-clicks are purely for message interaction (audio, images, etc.)
             onClick={(e) => {
+              // Standard click logic
               e.preventDefault();
               e.stopPropagation();
             }}
