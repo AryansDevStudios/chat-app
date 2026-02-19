@@ -18,7 +18,10 @@ import {
   Square,
   Play,
   Pause,
-  SendHorizontal
+  SendHorizontal,
+  ZoomIn,
+  ZoomOut,
+  Maximize2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -32,6 +35,7 @@ import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Slider } from "@/components/ui/slider"
 
 interface Message {
   id: string
@@ -55,8 +59,8 @@ export function ChatRoom() {
   
   const [inputText, setInputText] = useState("")
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
-  const [replyTo, setReplyTo] = useState<Message | null>(null)
-  const [editingMessage, setEditingMessage] = useState<Message | null>(null)
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
+  const [zoomLevel, setZoomLevel] = useState(1)
   
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
@@ -128,14 +132,6 @@ export function ChatRoom() {
           e.preventDefault()
         }
       }
-    }
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    const file = e.dataTransfer.files?.[0]
-    if (file && (file.type.startsWith("image/") || file.type.includes("gif"))) {
-      processImageFile(file)
     }
   }
 
@@ -240,33 +236,18 @@ export function ChatRoom() {
     const content = editableInputRef.current?.innerText.trim() || ""
     if ((!content && !selectedImage && !audioBase64) || !userId || !displayName || !roomId || !db) return
 
-    if (editingMessage) {
-      const docRef = doc(db, "rooms", roomId, "messages", editingMessage.id)
-      updateDocumentNonBlocking(docRef, {
-        content: content,
-        edited: true
-      })
-      setEditingMessage(null)
-    } else {
-      const messageData: any = {
-        content: content,
-        imageUrl: selectedImage || null,
-        audioUrl: audioBase64 || null,
-        senderId: userId,
-        senderDisplayName: displayName,
-        timestamp: serverTimestamp(),
-        roomId: roomId
-      }
-
-      if (replyTo) {
-        messageData.replyToId = replyTo.id
-        messageData.replyToContent = replyTo.content || (replyTo.imageUrl ? "Image" : "Voice Message")
-        messageData.replyToSenderDisplayName = replyTo.senderDisplayName
-      }
-
-      const messagesRef = collection(db, "rooms", roomId, "messages")
-      addDocumentNonBlocking(messagesRef, messageData)
+    const messageData: any = {
+      content: content,
+      imageUrl: selectedImage || null,
+      audioUrl: audioBase64 || null,
+      senderId: userId,
+      senderDisplayName: displayName,
+      timestamp: serverTimestamp(),
+      roomId: roomId
     }
+
+    const messagesRef = collection(db, "rooms", roomId, "messages")
+    addDocumentNonBlocking(messagesRef, messageData)
 
     if (editableInputRef.current) {
       editableInputRef.current.innerText = ""
@@ -274,7 +255,6 @@ export function ChatRoom() {
     setInputText("")
     setSelectedImage(null)
     setAudioBase64(null)
-    setReplyTo(null)
   }
 
   const handleShare = async () => {
@@ -332,6 +312,7 @@ export function ChatRoom() {
                 isMe={msg.senderId === userId}
                 isFirstInGroup={index === 0 || messages[index - 1].senderId !== msg.senderId}
                 isLastInGroup={index === messages.length - 1 || messages[index + 1].senderId !== msg.senderId}
+                onPreviewImage={setPreviewImageUrl}
               />
             ))}
           </div>
@@ -341,34 +322,6 @@ export function ChatRoom() {
       <footer className="fixed bottom-0 left-0 right-0 w-full bg-black/95 backdrop-blur-xl border-t border-white/5 pb-safe z-30 transition-all">
         <div className="max-w-2xl mx-auto p-4 flex flex-col gap-2">
           
-          {replyTo && (
-            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-primary rounded-t-xl animate-in slide-in-from-bottom-2">
-              <div className="flex flex-col overflow-hidden">
-                <span className="text-xs font-bold text-primary">Replying to {replyTo.senderDisplayName}</span>
-                <span className="text-sm text-muted-foreground truncate">{replyTo.content || (replyTo.imageUrl ? "Image" : "Voice Message")}</span>
-              </div>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setReplyTo(null)}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-
-          {editingMessage && (
-            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-blue-500 rounded-t-xl animate-in slide-in-from-bottom-2">
-              <div className="flex flex-col overflow-hidden">
-                <span className="text-xs font-bold text-blue-500">Editing Message</span>
-                <span className="text-sm text-muted-foreground truncate">{editingMessage.content}</span>
-              </div>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
-                setEditingMessage(null);
-                if (editableInputRef.current) editableInputRef.current.innerText = "";
-                setInputText("");
-              }}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-
           {selectedImage && (
             <div className="relative w-24 h-24 mb-2 rounded-xl overflow-hidden border border-white/20 animate-in zoom-in-95">
               <Image src={selectedImage} alt="Preview" fill className="object-cover" unoptimized />
@@ -439,21 +392,13 @@ export function ChatRoom() {
                 contentEditable
                 onInput={(e) => setInputText(e.currentTarget.innerText)}
                 onPaste={handlePaste}
-                onDrop={handleDrop}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSendMessage();
                   }
-                  if (e.key === 'Escape') {
-                    setReplyTo(null);
-                    if (editingMessage) {
-                      setEditingMessage(null);
-                      if (editableInputRef.current) editableInputRef.current.innerText = "";
-                    }
-                  }
                 }}
-                placeholder={editingMessage ? "Edit message..." : "Message..."}
+                placeholder="Message..."
                 className="flex-1 bg-transparent border-none focus:outline-none text-white placeholder:text-white/40 min-h-[40px] max-h-[120px] py-2.5 overflow-y-auto whitespace-pre-wrap ml-2 scrollbar-none text-[15px]"
               />
             )}
@@ -519,15 +464,91 @@ export function ChatRoom() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Image Preview Modal */}
+      <Dialog open={!!previewImageUrl} onOpenChange={(open) => {
+        if (!open) {
+          setPreviewImageUrl(null)
+          setZoomLevel(1)
+        }
+      }}>
+        <DialogContent className="max-w-4xl w-[95vw] h-[85vh] bg-black/95 border-white/10 p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="p-4 border-b border-white/10 shrink-0">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-white text-sm font-medium">Image Preview</DialogTitle>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full h-8 w-8"
+                  onClick={() => setZoomLevel(prev => Math.max(1, prev - 0.5))}
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </Button>
+                <div className="w-32 mx-2">
+                  <Slider 
+                    value={[zoomLevel]} 
+                    min={1} 
+                    max={4} 
+                    step={0.1} 
+                    onValueChange={([val]) => setZoomLevel(val)} 
+                  />
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full h-8 w-8"
+                  onClick={() => setZoomLevel(prev => Math.min(4, prev + 0.5))}
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full h-8 w-8 ml-2"
+                  onClick={() => {
+                    setPreviewImageUrl(null)
+                    setZoomLevel(1)
+                  }}
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-black cursor-zoom-out" onClick={() => {
+            setPreviewImageUrl(null)
+            setZoomLevel(1)
+          }}>
+            {previewImageUrl && (
+              <div 
+                className="relative transition-transform duration-200 ease-out"
+                style={{ transform: `scale(${zoomLevel})` }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Image 
+                  src={previewImageUrl} 
+                  alt="Full size preview" 
+                  width={1200} 
+                  height={1200} 
+                  className="max-w-full max-h-[70vh] object-contain rounded-md"
+                  unoptimized 
+                />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup }: { 
+function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImage }: { 
   msg: Message, 
   isMe: boolean, 
   isFirstInGroup: boolean,
-  isLastInGroup: boolean
+  isLastInGroup: boolean,
+  onPreviewImage: (url: string) => void
 }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -569,24 +590,22 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup }: {
           msg.audioUrl && "min-w-[200px]"
         )}
       >
-        {msg.replyToId && (
-          <div className="mx-2 mt-2 px-3 py-1.5 bg-black/20 border-l-2 border-white/40 rounded-lg mb-1 opacity-80">
-            <div className="text-[11px] font-bold opacity-70 flex items-center gap-1">
-              <span className="text-[13px] truncate">{msg.replyToContent}</span>
-            </div>
-          </div>
-        )}
-
         {msg.imageUrl && (
-          <div className="relative w-full min-h-[150px] max-w-sm">
+          <div 
+            className="relative w-full min-h-[150px] max-w-sm cursor-zoom-in group"
+            onClick={() => onPreviewImage(msg.imageUrl!)}
+          >
             <Image 
               src={msg.imageUrl} 
               alt="Shared media" 
               width={400} 
               height={400} 
-              className="object-contain w-full h-auto max-h-[400px]" 
+              className="object-contain w-full h-auto max-h-[400px] hover:opacity-90 transition-opacity" 
               unoptimized 
             />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <Maximize2 className="w-6 h-6 text-white drop-shadow-lg" />
+            </div>
           </div>
         )}
 
