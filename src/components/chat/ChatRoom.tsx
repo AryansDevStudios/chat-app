@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -161,27 +160,42 @@ export function ChatRoom() {
   }
 
   const handleShare = async () => {
-    const url = window.location.href
+    const url = window.location.href;
+    const shareData = {
+      title: 'CharcoalChat',
+      text: 'Join me in this chat room!',
+      url: url,
+    };
+
+    // Try native sharing first
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'CharcoalChat',
-          text: `Join me in this chat room!`,
-          url: url,
-        })
+        await navigator.share(shareData);
+        return; // Success!
       } catch (err) {
-        console.error("Error sharing:", err)
+        // If the user cancelled, don't fallback to clipboard
+        if ((err as Error).name === 'AbortError') return;
+        
+        // For other errors (like Permission Denied in specific environments), 
+        // we fallback to clipboard copy below.
+        console.warn("Navigator share failed, attempting clipboard fallback:", err);
       }
-    } else {
-      try {
-        await navigator.clipboard.writeText(url)
-        toast({
-          title: "Link Copied",
-          description: "Chat room link copied to clipboard!",
-        })
-      } catch (err) {
-        console.error("Clipboard error:", err)
-      }
+    }
+
+    // Fallback: Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: "Link Copied",
+        description: "Chat room link copied to clipboard!",
+      });
+    } catch (err) {
+      console.error("Clipboard error:", err);
+      toast({
+        variant: "destructive",
+        title: "Sharing Failed",
+        description: "Could not share or copy the link.",
+      });
     }
   }
 
