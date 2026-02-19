@@ -17,8 +17,7 @@ import {
   Pencil,
   Trash2,
   Share,
-  Home,
-  Image as ImageIcon
+  Home
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -56,7 +55,7 @@ interface Message {
 export function ChatRoom() {
   const db = useFirestore()
   const { toast } = useToast()
-  const { userId, displayName, roomId, isLoaded, updateDisplayName } = useChatSession()
+  const { userId, displayName, roomId, isLoaded, updateDisplayName, goHome } = useChatSession()
   const [inputText, setInputText] = useState("")
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
@@ -167,22 +166,15 @@ export function ChatRoom() {
       url: url,
     };
 
-    // Try native sharing first
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-        return; // Success!
+        return;
       } catch (err) {
-        // If the user cancelled, don't fallback to clipboard
         if ((err as Error).name === 'AbortError') return;
-        
-        // For other errors (like Permission Denied in specific environments), 
-        // we fallback to clipboard copy below.
-        console.warn("Navigator share failed, attempting clipboard fallback:", err);
       }
     }
 
-    // Fallback: Copy to clipboard
     try {
       await navigator.clipboard.writeText(url);
       toast({
@@ -190,7 +182,6 @@ export function ChatRoom() {
         description: "Chat room link copied to clipboard!",
       });
     } catch (err) {
-      console.error("Clipboard error:", err);
       toast({
         variant: "destructive",
         title: "Sharing Failed",
@@ -224,10 +215,6 @@ export function ChatRoom() {
     setSwipeOffset(0)
   }
 
-  const handleHomeClick = () => {
-    window.location.href = '/'
-  }
-
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center h-full w-full bg-black">
@@ -250,11 +237,11 @@ export function ChatRoom() {
               variant="ghost" 
               size="icon" 
               className="h-10 w-10 rounded-full hover:bg-white/5 transition-colors"
-              onClick={handleHomeClick}
+              onClick={goHome}
             >
               <Home className="w-5 h-5 text-white" />
             </Button>
-            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 lg:hidden">
+            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 lg:hidden" onClick={goHome}>
               <ChevronLeft className="w-7 h-7" />
             </Button>
             <div className="flex items-center gap-3">

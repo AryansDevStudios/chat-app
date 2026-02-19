@@ -7,6 +7,7 @@ import { signInAnonymously } from 'firebase/auth';
 const STORAGE_KEYS = {
   DISPLAY_NAME: 'charcoal_chat_display_name',
   ROOM_ID: 'charcoal_chat_room_id',
+  RECENT_ROOMS: 'charcoal_chat_recent_rooms',
 };
 
 const generateId = (prefix: string) => `${prefix}_${Math.random().toString(36).substr(2, 9)}`;
@@ -17,57 +18,74 @@ export function useChatSession() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [recentRooms, setRecentRooms] = useState<string[]>([]);
 
   useEffect(() => {
     if (!auth) return;
-
-    // Trigger anonymous sign-in if not logged in
     if (!user && !isUserLoading) {
       signInAnonymously(auth).catch(console.error);
     }
   }, [auth, user, isUserLoading]);
 
   useEffect(() => {
-    // Sync with localStorage on mount
+    // Sync with localStorage
     const storedDisplayName = localStorage.getItem(STORAGE_KEYS.DISPLAY_NAME);
     setDisplayName(storedDisplayName);
 
-    // Room ID can come from URL or storage
-    const urlParams = new URLSearchParams(window.location.search);
-    let currentRoom = urlParams.get('room');
-    
-    if (!currentRoom) {
-      currentRoom = localStorage.getItem(STORAGE_KEYS.ROOM_ID);
-      if (!currentRoom) {
-        currentRoom = generateId('room');
-        localStorage.setItem(STORAGE_KEYS.ROOM_ID, currentRoom);
-      }
-      // Update URL without reloading
-      const newUrl = `${window.location.pathname}?room=${currentRoom}`;
-      window.history.replaceState({ path: newUrl }, '', newUrl);
-    } else {
-      localStorage.setItem(STORAGE_KEYS.ROOM_ID, currentRoom);
+    const storedRecent = localStorage.getItem(STORAGE_KEYS.RECENT_ROOMS);
+    if (storedRecent) {
+      setRecentRooms(JSON.parse(storedRecent));
     }
-    
+
+    // Room ID from URL only
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentRoom = urlParams.get('room');
     setRoomId(currentRoom);
+
+    if (currentRoom) {
+      saveRecentRoom(currentRoom);
+    }
+
+    setIsLoaded(true);
   }, []);
 
-  useEffect(() => {
-    if (user && roomId) {
-      setIsLoaded(true);
+  const saveRecentRoom = (id: string) => {
+    const storedRecent = localStorage.getItem(STORAGE_KEYS.RECENT_ROOMS);
+    let rooms: string[] = storedRecent ? JSON.parse(storedRecent) : [];
+    if (!rooms.includes(id)) {
+      rooms = [id, ...rooms].slice(0, 5);
+      localStorage.setItem(STORAGE_KEYS.RECENT_ROOMS, JSON.stringify(rooms));
+      setRecentRooms(rooms);
     }
-  }, [user, roomId]);
+  };
 
   const updateDisplayName = (name: string) => {
     localStorage.setItem(STORAGE_KEYS.DISPLAY_NAME, name);
     setDisplayName(name);
   };
 
+  const createRoom = () => {
+    const newRoomId = generateId('room');
+    window.location.href = `?room=${newRoomId}`;
+  };
+
+  const joinRoom = (id: string) => {
+    window.location.href = `?room=${id}`;
+  };
+
+  const goHome = () => {
+    window.location.href = '/';
+  };
+
   return {
     userId: user?.uid || null,
     displayName,
     roomId,
+    recentRooms,
     isLoaded: isLoaded && !isUserLoading,
     updateDisplayName,
+    createRoom,
+    joinRoom,
+    goHome,
   };
 }
