@@ -5,7 +5,7 @@ import { collection, query, orderBy, serverTimestamp, doc } from "firebase/fires
 import { useChatSession } from "@/hooks/use-chat-session"
 import { WelcomeDialog } from "./WelcomeDialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { 
   Camera, 
@@ -32,12 +32,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
 interface Message {
   id: string
@@ -64,7 +58,6 @@ export function ChatRoom() {
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editingMessage, setEditingMessage] = useState<Message | null>(null)
   
-  // Voice Recording State
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [audioBase64, setAudioBase64] = useState<string | null>(null)
@@ -74,6 +67,7 @@ export function ChatRoom() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !roomId) return null
@@ -95,11 +89,11 @@ export function ChatRoom() {
   }, [messages])
 
   const processImageFile = (file: File) => {
-    if (file.size > 1024 * 1024) {
+    if (file.size > 2 * 1024 * 1024) { // Increased to 2MB for GIFs
       toast({
         variant: "destructive",
         title: "File too large",
-        description: "Please select an image under 1MB.",
+        description: "Please select an image/GIF under 2MB.",
       })
       return
     }
@@ -121,10 +115,18 @@ export function ChatRoom() {
     const items = e.clipboardData?.items
     if (!items) return
     for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
+      if (items[i].type.indexOf("image") !== -1 || items[i].type.indexOf("gif") !== -1) {
         const file = items[i].getAsFile()
         if (file) processImageFile(file)
       }
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files?.[0]
+    if (file && (file.type.startsWith("image/") || file.type.includes("gif"))) {
+      processImageFile(file)
     }
   }
 
@@ -335,8 +337,8 @@ export function ChatRoom() {
 
           {selectedImage && (
             <div className="relative w-24 h-24 mb-2 rounded-xl overflow-hidden border border-white/20 group animate-in zoom-in-95">
-              <Image src={selectedImage} alt="Preview" fill className="object-cover" />
-              <button onClick={() => setSelectedImage(null)} className="absolute top-1 right-1 bg-black/50 rounded-full p-1">
+              <Image src={selectedImage} alt="Preview" fill className="object-cover" unoptimized />
+              <button onClick={() => setSelectedImage(null)} className="absolute top-1 right-1 bg-black/50 rounded-full p-1 z-10">
                 <X className="w-4 h-4 text-white" />
               </button>
             </div>
@@ -354,14 +356,14 @@ export function ChatRoom() {
             </div>
           )}
 
-          <form onSubmit={handleSendMessage} className="ig-input-pill shadow-2xl ring-1 ring-white/10 relative">
-            <div className="flex items-center gap-1">
+          <div className="ig-input-pill shadow-2xl ring-1 ring-white/10 relative">
+            <div className="flex items-center gap-1 self-end mb-1">
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
               <Button 
                 type="button" 
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 -ml-1 rounded-full bg-blue-500 hover:bg-blue-600 transition-all active:scale-90"
+                className="h-8 w-8 rounded-full bg-blue-500 hover:bg-blue-600 transition-all active:scale-90"
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Camera className="w-5 h-5 text-white" />
@@ -394,11 +396,17 @@ export function ChatRoom() {
                 </Button>
               </div>
             ) : (
-              <Input
+              <Textarea
+                ref={textareaRef}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onPaste={handlePaste}
+                onDrop={handleDrop}
                 onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
                   if (e.key === 'Escape') {
                     setReplyTo(null);
                     if (editingMessage) {
@@ -408,15 +416,16 @@ export function ChatRoom() {
                   }
                 }}
                 placeholder={editingMessage ? "Edit message..." : "Message..."}
-                className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 h-10 text-[15px] ml-2"
+                className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 min-h-[40px] max-h-[120px] py-2.5 resize-none text-[15px] ml-2 scrollbar-none"
                 autoFocus
+                rows={1}
               />
             )}
 
             {!isRecording && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 self-end mb-1">
                 {(inputText.trim() || selectedImage || audioBase64) ? (
-                  <Button type="submit" variant="ghost" className="text-[#0095f6] font-bold text-[15px] px-4">
+                  <Button onClick={handleSendMessage} variant="ghost" className="text-[#0095f6] font-bold text-[15px] px-4">
                     {editingMessage ? "Save" : "Send"}
                   </Button>
                 ) : (
@@ -432,7 +441,7 @@ export function ChatRoom() {
                 )}
               </div>
             )}
-          </form>
+          </div>
         </div>
       </footer>
     </div>
@@ -448,42 +457,8 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   isFirstInGroup: boolean,
   isLastInGroup: boolean
 }) {
-  const [swipeX, setSwipeX] = useState(0)
-  const startX = useRef(0)
-  const isSwiping = useRef(false)
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null)
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  
-  // Audio playback state
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    // Logic disabled for testing
-    if (e.button !== 0) return;
-    e.stopPropagation();
-  }
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    e.stopPropagation();
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    // Swipe logic disabled for testing
-  }
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    // Swipe logic disabled for testing
-  }
-
-  const handleTouchEnd = () => {
-    setSwipeX(0)
-    isSwiping.current = false
-  }
 
   const toggleAudio = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -504,125 +479,87 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
         isMe ? "self-end items-end" : "self-start items-start",
         isFirstInGroup && "mt-6"
       )}
-      style={{ transform: `translateX(${swipeX}px)`, transition: isSwiping.current ? 'none' : 'transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28)' }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-      }}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-      }}
     >
-      <div 
-        className="absolute right-[-40px] top-1/2 -translate-y-1/2 opacity-0 transition-opacity"
-        style={{ opacity: swipeX < -40 ? 1 : 0 }}
-      >
-        <Reply className="w-5 h-5 text-primary" />
-      </div>
-
       {!isMe && isFirstInGroup && (
         <span className="text-[11px] text-muted-foreground ml-3 mb-1 font-semibold uppercase tracking-wider">
           {msg.senderDisplayName}
         </span>
       )}
 
-      {/* Explicitly disabled for now as requested */}
-      <DropdownMenu open={false} onOpenChange={setIsMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <div 
-            role="button"
-            tabIndex={0}
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            className={cn(
-              "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all active:scale-[0.98] group",
-              isMe ? "ig-bubble-me" : "ig-bubble-other",
-              !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
-              isMe && !isLastInGroup && "mb-0.5",
-              !isMe && !isLastInGroup && "mb-0.5",
-              msg.imageUrl && "p-0 overflow-hidden",
-              msg.audioUrl && "min-w-[200px]"
-            )}
-          >
-            {msg.replyToId && (
-              <div className="mx-2 mt-2 px-3 py-1.5 bg-black/20 border-l-2 border-white/40 rounded-lg mb-1 opacity-80">
-                <div className="text-[11px] font-bold opacity-70 flex items-center gap-1">
-                  <CornerDownRight className="w-3 h-3" />
-                  {msg.replyToSenderDisplayName}
-                </div>
-                <div className="text-[13px] truncate">{msg.replyToContent}</div>
-              </div>
-            )}
+      <div 
+        className={cn(
+          "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all active:scale-[0.98] group",
+          isMe ? "ig-bubble-me" : "ig-bubble-other",
+          !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
+          isMe && !isLastInGroup && "mb-0.5",
+          !isMe && !isLastInGroup && "mb-0.5",
+          msg.imageUrl && "p-0 overflow-hidden",
+          msg.audioUrl && "min-w-[200px]"
+        )}
+        onClick={(e) => {
+          // Explicitly prevent any parent menu logic
+          e.stopPropagation();
+        }}
+      >
+        {msg.replyToId && (
+          <div className="mx-2 mt-2 px-3 py-1.5 bg-black/20 border-l-2 border-white/40 rounded-lg mb-1 opacity-80">
+            <div className="text-[11px] font-bold opacity-70 flex items-center gap-1">
+              <CornerDownRight className="w-3 h-3" />
+              {msg.replyToSenderDisplayName}
+            </div>
+            <div className="text-[13px] truncate">{msg.replyToContent}</div>
+          </div>
+        )}
 
-            {msg.imageUrl && (
-              <div className="relative w-full aspect-square min-w-[200px] max-w-sm">
-                <Image src={msg.imageUrl} alt="Shared media" fill className="object-cover" unoptimized />
-              </div>
-            )}
+        {msg.imageUrl && (
+          <div className="relative w-full min-h-[150px] max-w-sm">
+            <Image 
+              src={msg.imageUrl} 
+              alt="Shared media" 
+              width={400} 
+              height={400} 
+              className="object-contain w-full h-auto max-h-[400px]" 
+              unoptimized 
+            />
+          </div>
+        )}
 
-            {msg.audioUrl && (
-              <div className="flex items-center gap-3 px-4 py-3">
-                <Button 
-                  size="icon" 
-                  variant="ghost" 
-                  className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 z-10"
-                  onClick={toggleAudio}
-                >
-                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-                </Button>
-                <div className="flex-1 flex flex-col gap-1">
-                  <div className="h-1 w-full bg-white/20 rounded-full relative overflow-hidden">
-                    <div className={cn("absolute inset-0 bg-white/60", isPlaying ? "animate-progress" : "w-0")} />
-                  </div>
-                  <span className="text-[10px] opacity-60">Voice Message</span>
-                </div>
-                <audio 
-                  ref={audioRef} 
-                  src={msg.audioUrl} 
-                  onEnded={() => setIsPlaying(false)}
-                  onPause={() => setIsPlaying(false)}
-                  onPlay={() => setIsPlaying(true)}
-                  className="hidden" 
-                />
+        {msg.audioUrl && (
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Button 
+              size="icon" 
+              variant="ghost" 
+              className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 z-10"
+              onClick={toggleAudio}
+            >
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+            </Button>
+            <div className="flex-1 flex flex-col gap-1">
+              <div className="h-1 w-full bg-white/20 rounded-full relative overflow-hidden">
+                <div className={cn("absolute inset-0 bg-white/60", isPlaying ? "animate-pulse" : "w-0")} />
               </div>
-            )}
+              <span className="text-[10px] opacity-60">Voice Message</span>
+            </div>
+            <audio 
+              ref={audioRef} 
+              src={msg.audioUrl} 
+              onEnded={() => setIsPlaying(false)}
+              onPause={() => setIsPlaying(false)}
+              onPlay={() => setIsPlaying(true)}
+              className="hidden" 
+            />
+          </div>
+        )}
 
-            {msg.content && (
-              <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words relative">
-                {msg.content}
-                {msg.edited && (
-                  <span className="text-[10px] opacity-50 ml-2 italic">(edited)</span>
-                )}
-              </div>
+        {msg.content && (
+          <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words relative">
+            {msg.content}
+            {msg.edited && (
+              <span className="text-[10px] opacity-50 ml-2 italic">(edited)</span>
             )}
           </div>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align={isMe ? "end" : "start"} className="bg-[#262626] border-white/10 text-white min-w-[120px]">
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onReply(); setIsMenuOpen(false); }} className="gap-2 focus:bg-white/10 cursor-pointer">
-            <Reply className="w-4 h-4" /> Reply
-          </DropdownMenuItem>
-          {isMe && (
-            <>
-              {msg.content && (
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); setIsMenuOpen(false); }} className="gap-2 focus:bg-white/10 cursor-pointer">
-                  <Image src="https://picsum.photos/seed/edit/20/20" alt="edit" width={16} height={16} className="invert" /> Edit
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(); setIsMenuOpen(false); }} className="gap-2 text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer">
-                <Image src="https://picsum.photos/seed/delete/20/20" alt="delete" width={16} height={16} className="invert" /> Unsend
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        )}
+      </div>
     </div>
   )
 }
