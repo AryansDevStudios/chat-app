@@ -105,17 +105,20 @@ export function ChatRoom() {
     const element = document.getElementById(`msg-${msgId}`)
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" })
-      // Colorful highlight effect (vibrant purple/pink)
-      element.style.backgroundColor = "rgba(163, 7, 186, 0.3)"
-      element.style.boxShadow = "0 0 40px rgba(163, 7, 186, 0.6)"
+      
+      // Vibrant Neon Purple/Pink highlight with pulse
+      element.style.backgroundColor = "rgba(163, 7, 186, 0.4)"
+      element.style.boxShadow = "0 0 50px rgba(163, 7, 186, 0.8), 0 0 100px rgba(226, 30, 83, 0.3)"
       element.style.borderRadius = "1.5rem"
-      element.style.transition = "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
-      element.style.zIndex = "10"
+      element.style.transition = "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
+      element.style.transform = "scale(1.05)"
+      element.style.zIndex = "40"
       
       setTimeout(() => {
         element.style.backgroundColor = ""
         element.style.boxShadow = ""
         element.style.borderRadius = ""
+        element.style.transform = ""
         element.style.zIndex = ""
       }, 2000)
     }
@@ -640,7 +643,7 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
 }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const clickTimer = useRef<NodeJS.Timeout | null>(null)
+  const clickTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const toggleAudio = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -654,29 +657,27 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
     setIsPlaying(!isPlaying)
   }
 
+  const handleImageClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    
+    if (clickTimerRef.current) {
+      // It's a double click!
+      clearTimeout(clickTimerRef.current)
+      clickTimerRef.current = null
+      onReply()
+    } else {
+      // Start a timer for the first click
+      clickTimerRef.current = setTimeout(() => {
+        onPreviewImage(msg.imageUrl!)
+        clickTimerRef.current = null
+      }, 250)
+    }
+  }
+
   const handleBubbleDoubleClick = (e: React.MouseEvent | React.TouchEvent) => {
     if (isMobile) {
       e.preventDefault()
       onReply()
-    }
-  }
-
-  const handleImageInteraction = (e: React.MouseEvent) => {
-    e.preventDefault()
-    if (isMobile) {
-      // Distinguish between single and double tap for images on mobile
-      if (clickTimer.current) {
-        clearTimeout(clickTimer.current)
-        clickTimer.current = null
-        onReply()
-      } else {
-        clickTimer.current = setTimeout(() => {
-          onPreviewImage(msg.imageUrl!)
-          clickTimer.current = null
-        }, 250)
-      }
-    } else {
-      onPreviewImage(msg.imageUrl!)
     }
   }
 
@@ -723,7 +724,7 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
         {msg.imageUrl && (
           <div 
             className="relative w-full min-h-[150px] max-w-sm cursor-zoom-in group"
-            onClick={handleImageInteraction}
+            onClick={handleImageClick}
           >
             <Image 
               src={msg.imageUrl} 
