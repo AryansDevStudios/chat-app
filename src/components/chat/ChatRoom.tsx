@@ -305,7 +305,7 @@ export function ChatRoom() {
     <div className="flex flex-col h-full w-full bg-black text-white relative overflow-hidden">
       <WelcomeDialog isOpen={!displayName} onSave={updateDisplayName} />
 
-      <header className="flex items-center justify-center px-4 h-16 border-b border-white/10 shrink-0 bg-black/80 backdrop-blur-md sticky top-0 z-20">
+      <header className="fixed top-0 left-0 right-0 h-16 border-b border-white/10 shrink-0 bg-black/80 backdrop-blur-md z-30 flex items-center justify-center px-4">
         <div className="flex items-center justify-between w-full max-w-3xl">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-white/5" onClick={goHome}>
@@ -322,7 +322,7 @@ export function ChatRoom() {
         </div>
       </header>
 
-      <ScrollArea ref={scrollRef} className="flex-1 pb-32">
+      <ScrollArea ref={scrollRef} className="flex-1 pt-16 pb-32">
         <div className="flex flex-col max-w-2xl mx-auto px-4 py-8 min-h-full">
           <div className="flex flex-col gap-1 pb-12">
             {messages?.map((msg, index) => (
