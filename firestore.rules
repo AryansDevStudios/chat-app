@@ -1,0 +1,126 @@
+/**
+ * CharcoalChat Security Rules
+ * 
+ * CORE PHILOSOPHY:
+ * This ruleset implements a robust, owner-based security model designed for a chat application 
+ * utilizing anonymous and password authentication. Access is strictly controlled based on 
+ * the 'request.auth.uid' as the source of truth, ensuring users can only manage their own 
+ * profiles and messages while allowing for public communication within chat rooms.
+ * 
+ * DATA STRUCTURE:
+ * - /users/{userId}: Private user profiles where document IDs match the authenticated UID.
+ * - /rooms/{roomId}: Publicly readable chat room metadata.
+ * - /rooms/{roomId}/messages/{messageId}: Nested chat messages within rooms.
+ * 
+ * KEY SECURITY DECISIONS:
+ * - Authorization Independence: Critical fields like 'senderId' and 'id' are denormalized 
+ *   onto documents to allow security checks to perform without expensive 'get()' lookups.
+ * - Ownership Enforcement: Users have full CRUD access to their own UserProfile and 
+ *   their own Messages within any room.
+ * - Public Rooms: Room metadata and message histories are publicly readable to facilitate 
+ *   open chat discovery, but writes are strictly authenticated.
+ * - Relational Integrity: On document creation, the rules enforce that internal data fields 
+ *   (like 'roomId' or 'senderId') match the actual context of the request (path parameters 
+ *   and auth state).
+ * 
+ * DENORMALIZATION FOR AUTHORIZATION:
+ * - 'UserProfile.id': Must match the document ID and 'request.auth.uid' to ensure a 1:1 mapping.
+ * - 'Message.senderId': Used to verify message ownership for updates and deletions without 
+ *   querying the user collection.
+ * - 'Message.roomId': Used to ensure messages cannot be cross-posted to incorrect room paths.
+ */
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+
+    /** Checks if the user is authenticated with Firebase Auth. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** Checks if the current user's UID matches the provided ID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** Validates ownership while ensuring the document exists for updates/deletes. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for user profile documents. Ensures users only manage their own profile.
+     * @path /users/{userId}
+     * @allow (get) Any user can retrieve their own profile.
+     * @deny (list) Listing users is prohibited to maintain privacy.
+     * @principle Ownership and path-based authorization.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      
+      // On create, ensure the internal 'id' matches the path 'userId'
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      
+      // On update, ensure the 'id' field remains immutable
+      allow update: if isExistingOwner(userId) && request.resource.data.id.id == resource.data.id;
+      
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for chat room metadata. Rooms are publicly discoverable.
+     * @path /rooms/{roomId}
+     * @allow (get, list) Anyone can see room metadata.
+     * @deny (update, delete) Protected writes until administrative roles are defined.
+     * @principle Public read with restricted writes.
+     */
+    match /rooms/{roomId} {
+      allow get, list: if true;
+      
+      // Allow any signed-in user to create a room
+      allow create: if isSignedIn();
+      
+      /** 
+       * CRITICAL: Cannot implement owner-only writes. The 'Room' entity is missing an 'ownerId' or 'authorId' field.
+       * TODO: Add owner validation once the schema is updated with an ownership field to prevent unauthorized modifications.
+       */
+      allow update, delete: if false; 
+    }
+
+    /**
+     * @description Rules for messages within a room. Publicly readable, owner-writable.
+     * @path /rooms/{roomId}/messages/{messageId}
+     * @allow (list) Anyone can read message history for a room.
+     * @deny (create) Mismatched 'senderId' or 'roomId' in the message data.
+     * @principle Ownership-based writes and relational integrity validation.
+     */
+    match /rooms/{roomId}/messages/{messageId} {
+      allow get, list: if true;
+
+      // On create: sender must be the auth user, and message must belong to the correct room path
+      allow create: if isSignedIn() 
+                    && request.resource.data.senderId == request.auth.uid 
+                    && request.resource.data.roomId == roomId;
+
+      // On update: must be the original sender, and critical links (sender/room) must not change
+      allow update: if isExistingOwner(resource.data.senderId)
+                    && request.resource.data.senderId == resource.data.senderId
+                    && request.resource.data.roomId == resource.data.roomId;
+
+      allow delete: if isExistingOwner(resource.data.senderId);
+    }
+  }
+}
+
+/**
+ * PROTOTYPING MODE NOTICE:
+ * These rules focus on IDENTITY and RELATIONSHIPS. 
+ * Data types and non-authorization fields (like 'content' or 'displayName') are not validated 
+ * to allow for rapid frontend iteration.
+ */

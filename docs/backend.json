@@ -1,0 +1,155 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's profile within the CharcoalChat application, identified by a randomly generated ID and a chosen display name. There is no traditional user authentication, so this profile primarily serves to identify messages sent by a particular client session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity. This is the randomUserID generated for a user's session."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The chosen display name for the user, used to identify them in chat conversations."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when this user profile was first created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "displayName",
+        "createdAt"
+      ]
+    },
+    "Room": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Room",
+      "type": "object",
+      "description": "Represents a chat room where users can exchange messages. Each room has a unique identifier.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Room entity. This is the unique roomID generated for a chat session."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the chat room was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "createdAt"
+      ]
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a single text message sent within a chat room.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Message entity."
+        },
+        "roomId": {
+          "type": "string",
+          "description": "Reference to the Room where this message was sent. (Relationship: Room 1:N Message)"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who sent this message. (Relationship: UserProfile 1:N Message)"
+        },
+        "senderDisplayName": {
+          "type": "string",
+          "description": "The display name of the user who sent the message at the time it was sent. Denormalized for efficient display."
+        },
+        "content": {
+          "type": "string",
+          "description": "The actual text content of the message."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp when the message was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "roomId",
+        "senderId",
+        "senderDisplayName",
+        "content",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile information, primarily the display name. The document ID (`userId`) MUST match `request.auth.uid`. Includes denormalized 'id' field which corresponds to the authenticated user's ID for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user's anonymous session, which matches `request.auth.uid`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/rooms/{roomId}",
+        "definition": {
+          "entityName": "Room",
+          "schema": {
+            "$ref": "#/backend/entities/Room"
+          },
+          "description": "Stores metadata for each chat room. Rooms are assumed to be public/discoverable by their ID.",
+          "params": [
+            {
+              "name": "roomId",
+              "description": "The unique identifier for the chat room."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/rooms/{roomId}/messages/{messageId}",
+        "definition": {
+          "entityName": "Message",
+          "schema": {
+            "$ref": "#/backend/entities/Message"
+          },
+          "description": "Stores individual chat messages within a specific room. The 'senderId' field is denormalized and MUST match `request.auth.uid` for authorization independence. The 'senderDisplayName' is also denormalized for efficient display.",
+          "params": [
+            {
+              "name": "roomId",
+              "description": "The unique identifier of the parent chat room."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique identifier for the message within the room."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure for CharcoalChat is designed around the core principles of Authorization Independence, Structural Segregation, and Access Modeling, explicitly catering to a session-based anonymous authentication model where `randomUserID` corresponds to `request.auth.uid`.\n\n1.  **User Profiles (`/users/{userId}`):** UserProfile documents are stored in a top-level collection `/users`. Each document's ID (`userId`) is directly tied to the Firebase Authentication `uid` of the anonymous session. This ensures **Authorization Independence** as access to a UserProfile document can be determined solely by comparing `request.auth.uid` to the `userId` in the path, eliminating any need for `get()` calls in security rules. This also provides **Private Data** access, where each user only owns and accesses their own profile.\n\n2.  **Chat Rooms (`/rooms/{roomId}`):** Rooms are stored in a top-level collection `/rooms`. Given the requirements, rooms appear to be publicly accessible once their `roomId` is known. This supports simple QAPs (Queries Are Not Filters) for listing rooms, although the application primarily relies on users having a specific `roomId` (generated or shared) rather than browsing a directory. No complex membership or authorization structure is needed at this level based on the current requirements.\n\n3.  **Messages (`/rooms/{roomId}/messages/{messageId}`):** Messages are stored as a subcollection under their respective Room documents. This adheres to the **Continue Hierarchy for Nested Data** principle. For **Authorization Independence**, each Message document denormalizes the `senderId` (which is `request.auth.uid` of the sender) and `senderDisplayName`. This allows security rules to validate message ownership (`request.auth.uid == resource.data.senderId`) directly on the message document without needing to fetch the parent Room or sender's UserProfile. The `roomId` is also included in the message document (denormalized, if technically necessary, though implicitly available from the path) to ensure rules can validate consistency (`request.resource.data.roomId == roomId`).\n\n**How QAPs are supported:**\n\n*   **User Profiles:** A client wishing to retrieve their profile will query `/users/{request.auth.uid}`. Security rules can enforce `allow read, update: if request.auth.uid == userId;`, ensuring that queries target only the authenticated user's profile and are never implicitly filtered.\n*   **Rooms:** If the application were to list all rooms, a query on `/rooms` would retrieve all documents. If rooms need any form of access control beyond 'public by ID', a denormalized `members` map or similar field would be added to the `Room` document to facilitate QAPs without `get()` calls. For the current spec, public read access is assumed.\n*   **Messages:** To fetch messages for a specific room, clients query `/rooms/{roomId}/messages`. Security rules can ensure that `request.resource.data.roomId == roomId` is always true for writes, and reads are permitted for anyone, or for authenticated users if `request.auth.uid != null`. This ensures that all list operations on messages are naturally scoped by the `roomId` in the path, preventing security rules from acting as filters on unstructured queries."
+  }
+}
