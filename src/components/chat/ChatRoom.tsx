@@ -538,7 +538,8 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
         </span>
       )}
 
-      <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+      {/* Logic disabled: open={false} explicitly prevents the menu from showing on any interaction */}
+      <DropdownMenu open={false} onOpenChange={setIsMenuOpen}>
         <DropdownMenuTrigger asChild>
           <div 
             role="button"
