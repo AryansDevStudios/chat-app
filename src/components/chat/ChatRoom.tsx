@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { collection, query, orderBy, serverTimestamp } from "firebase/firestore"
+import { collection, query, orderBy, serverTimestamp, doc } from "firebase/firestore"
 import { useChatSession } from "@/hooks/use-chat-session"
 import { WelcomeDialog } from "./WelcomeDialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -21,11 +21,27 @@ import {
   Video,
   X,
   CornerDownRight,
-  Reply
+  Reply,
+  MoreVertical,
+  Pencil,
+  Trash2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from "@/firebase"
+import { 
+  useFirestore, 
+  useCollection, 
+  useMemoFirebase, 
+  addDocumentNonBlocking, 
+  updateDocumentNonBlocking, 
+  deleteDocumentNonBlocking 
+} from "@/firebase"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface Message {
   id: string
@@ -37,6 +53,7 @@ interface Message {
   replyToId?: string
   replyToContent?: string
   replyToSenderDisplayName?: string
+  isEdited?: boolean
 }
 
 export function ChatRoom() {
@@ -44,10 +61,12 @@ export function ChatRoom() {
   const { userId, displayName, roomId, isLoaded, updateDisplayName } = useChatSession()
   const [inputText, setInputText] = useState("")
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null)
   const [swipingId, setSwipingId] = useState<string | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const touchStart = useRef<number | null>(null)
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null)
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !roomId) return null
@@ -72,37 +91,75 @@ export function ChatRoom() {
     e?.preventDefault()
     if (!inputText.trim() || !userId || !displayName || !roomId || !db) return
 
-    const messageData = {
-      content: inputText.trim(),
-      senderId: userId,
-      senderDisplayName: displayName,
-      timestamp: serverTimestamp(),
-      roomId: roomId,
-      ...(replyingTo ? {
-        replyToId: replyingTo.id,
-        replyToContent: replyingTo.content,
-        replyToSenderDisplayName: replyingTo.senderDisplayName
-      } : {})
+    if (editingMessage) {
+      // Handle Edit
+      const messageRef = doc(db, "rooms", roomId, "messages", editingMessage.id)
+      updateDocumentNonBlocking(messageRef, {
+        content: inputText.trim(),
+        isEdited: true,
+        updatedAt: serverTimestamp()
+      })
+      setEditingMessage(null)
+    } else {
+      // Handle New Message
+      const messageData = {
+        content: inputText.trim(),
+        senderId: userId,
+        senderDisplayName: displayName,
+        timestamp: serverTimestamp(),
+        roomId: roomId,
+        ...(replyingTo ? {
+          replyToId: replyingTo.id,
+          replyToContent: replyingTo.content,
+          replyToSenderDisplayName: replyingTo.senderDisplayName
+        } : {})
+      }
+
+      const messagesRef = collection(db, "rooms", roomId, "messages")
+      addDocumentNonBlocking(messagesRef, messageData)
     }
 
-    const messagesRef = collection(db, "rooms", roomId, "messages")
-    addDocumentNonBlocking(messagesRef, messageData)
     setInputText("")
     setReplyingTo(null)
   }
 
   const handleReply = (msg: Message) => {
+    setEditingMessage(null)
     setReplyingTo(msg)
+  }
+
+  const handleEdit = (msg: Message) => {
+    setReplyingTo(null)
+    setEditingMessage(msg)
+    setInputText(msg.content)
+  }
+
+  const handleDelete = (msg: Message) => {
+    if (!db || !roomId) return
+    const messageRef = doc(db, "rooms", roomId, "messages", msg.id)
+    deleteDocumentNonBlocking(messageRef)
   }
 
   const handlePointerDown = (id: string, e: React.PointerEvent) => {
     touchStart.current = e.clientX
     setSwipingId(id)
+    
+    // Simple long press detection for mobile
+    longPressTimer.current = setTimeout(() => {
+      // We could trigger a separate menu here, but we'll rely on ContextMenu/Dropdown
+    }, 500)
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (touchStart.current === null) return
     const diff = e.clientX - touchStart.current
+    
+    // If they move too much, it's not a long press
+    if (Math.abs(diff) > 10 && longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+
     // Only allow sliding to the left (negative diff)
     if (diff < 0) {
       const offset = Math.max(diff, -100)
@@ -113,6 +170,11 @@ export function ChatRoom() {
   }
 
   const handlePointerUp = (msg: Message) => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+
     if (swipeOffset < -50) {
       handleReply(msg)
     }
@@ -229,28 +291,52 @@ export function ChatRoom() {
                     </span>
                   )}
 
-                  <div className={cn(
-                    "flex flex-col transition-all relative break-all whitespace-pre-wrap overflow-hidden select-none",
-                    isMe ? "ig-bubble-me" : "ig-bubble-other",
-                    !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
-                    isMe && !isLastInGroup && "mb-0.5",
-                    !isMe && !isLastInGroup && "mb-0.5"
-                  )}>
-                    {msg.replyToContent && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <div className={cn(
-                        "mx-2 mt-2 px-3 py-2 rounded-lg border-l-2 bg-white/10 text-[13px] opacity-80 mb-1",
-                        isMe ? "border-white/30" : "border-white/20"
+                        "flex flex-col transition-all relative break-all whitespace-pre-wrap overflow-hidden select-none cursor-pointer active:scale-[0.98] transition-transform",
+                        isMe ? "ig-bubble-me" : "ig-bubble-other",
+                        !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
+                        isMe && !isLastInGroup && "mb-0.5",
+                        !isMe && !isLastInGroup && "mb-0.5"
                       )}>
-                        <p className="font-bold text-[11px] uppercase mb-0.5 opacity-60">
-                          {msg.replyToSenderDisplayName === displayName ? "You" : msg.replyToSenderDisplayName}
-                        </p>
-                        <p className="line-clamp-2 italic">{msg.replyToContent}</p>
+                        {msg.replyToContent && (
+                          <div className={cn(
+                            "mx-2 mt-2 px-3 py-2 rounded-lg border-l-2 bg-white/10 text-[13px] opacity-80 mb-1",
+                            isMe ? "border-white/30" : "border-white/20"
+                          )}>
+                            <p className="font-bold text-[11px] uppercase mb-0.5 opacity-60">
+                              {msg.replyToSenderDisplayName === displayName ? "You" : msg.replyToSenderDisplayName}
+                            </p>
+                            <p className="line-clamp-2 italic">{msg.replyToContent}</p>
+                          </div>
+                        )}
+                        <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words relative">
+                          {msg.content}
+                          {msg.isEdited && (
+                            <span className="text-[9px] opacity-50 block mt-1 uppercase font-bold tracking-tighter">
+                              Edited
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words">
-                      {msg.content}
-                    </div>
-                  </div>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align={isMe ? "end" : "start"} className="bg-[#262626] border-white/10 text-white min-w-[120px]">
+                      <DropdownMenuItem className="focus:bg-white/10 gap-2 cursor-pointer" onClick={() => handleReply(msg)}>
+                        <Reply className="w-4 h-4" /> Reply
+                      </DropdownMenuItem>
+                      {isMe && (
+                        <>
+                          <DropdownMenuItem className="focus:bg-white/10 gap-2 cursor-pointer" onClick={() => handleEdit(msg)}>
+                            <Pencil className="w-4 h-4" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="focus:bg-destructive/20 text-destructive focus:text-destructive gap-2 cursor-pointer" onClick={() => handleDelete(msg)}>
+                            <Trash2 className="w-4 h-4" /> Unsend
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               )
             })}
@@ -262,21 +348,37 @@ export function ChatRoom() {
       <footer className="p-4 bg-black lg:pb-6 sticky bottom-0 z-20 shrink-0 border-t border-white/5">
         <div className="max-w-2xl mx-auto flex flex-col gap-2">
           
-          {/* Reply Preview */}
-          {replyingTo && (
+          {/* Context Previews (Reply/Edit) */}
+          {(replyingTo || editingMessage) && (
             <div className="flex items-center justify-between px-4 py-2 bg-[#262626] rounded-t-2xl border-x border-t border-white/10 animate-in slide-in-from-bottom-2 duration-200">
               <div className="flex items-center gap-2 overflow-hidden">
-                <CornerDownRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[11px] font-bold text-blue-400">Replying to {replyingTo.senderDisplayName}</span>
-                  <span className="text-xs text-muted-foreground truncate italic">{replyingTo.content}</span>
-                </div>
+                {replyingTo ? (
+                  <>
+                    <CornerDownRight className="w-4 h-4 text-blue-400 shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[11px] font-bold text-blue-400 uppercase">Replying to {replyingTo.senderDisplayName}</span>
+                      <span className="text-xs text-muted-foreground truncate italic">{replyingTo.content}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="w-4 h-4 text-primary shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[11px] font-bold text-primary uppercase tracking-wider">Editing Message</span>
+                      <span className="text-xs text-muted-foreground truncate italic">{editingMessage?.content}</span>
+                    </div>
+                  </>
+                )}
               </div>
               <Button 
                 variant="ghost" 
                 size="icon" 
                 className="h-6 w-6 rounded-full hover:bg-white/10 shrink-0"
-                onClick={() => setReplyingTo(null)}
+                onClick={() => {
+                  setReplyingTo(null)
+                  setEditingMessage(null)
+                  if (editingMessage) setInputText("")
+                }}
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -287,7 +389,7 @@ export function ChatRoom() {
             onSubmit={handleSendMessage} 
             className={cn(
               "ig-input-pill shadow-2xl ring-1 ring-white/10 transition-all",
-              replyingTo && "rounded-t-none border-t-0"
+              (replyingTo || editingMessage) && "rounded-t-none border-t-0"
             )}
           >
             <div className="flex items-center gap-1">
@@ -299,18 +401,18 @@ export function ChatRoom() {
             <Input
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Message..."
+              placeholder={editingMessage ? "Edit message..." : "Message..."}
               className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 h-10 text-[15px] p-0 font-normal ml-2"
               autoFocus
             />
 
-            {inputText.trim() ? (
+            {(inputText.trim() || editingMessage) ? (
               <Button 
                 type="submit" 
                 variant="ghost" 
                 className="text-[#0095f6] font-bold text-[15px] p-0 px-4 hover:bg-transparent hover:text-blue-400 active:scale-95 transition-all flex-shrink-0"
               >
-                Send
+                {editingMessage ? "Done" : "Send"}
               </Button>
             ) : (
               <div className="flex items-center gap-1 pr-1 flex-shrink-0">
