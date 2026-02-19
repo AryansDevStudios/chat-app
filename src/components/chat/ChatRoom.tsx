@@ -20,7 +20,8 @@ import {
   Phone,
   Video,
   X,
-  CornerDownRight
+  CornerDownRight,
+  Reply
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from "@/firebase"
@@ -43,7 +44,10 @@ export function ChatRoom() {
   const { userId, displayName, roomId, isLoaded, updateDisplayName } = useChatSession()
   const [inputText, setInputText] = useState("")
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+  const [swipingId, setSwipingId] = useState<string | null>(null)
+  const [swipeOffset, setSwipeOffset] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const touchStart = useRef<number | null>(null)
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !roomId) return null
@@ -89,6 +93,32 @@ export function ChatRoom() {
 
   const handleReply = (msg: Message) => {
     setReplyingTo(msg)
+  }
+
+  const handlePointerDown = (id: string, e: React.PointerEvent) => {
+    touchStart.current = e.clientX
+    setSwipingId(id)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (touchStart.current === null) return
+    const diff = e.clientX - touchStart.current
+    // Only allow sliding to the left (negative diff)
+    if (diff < 0) {
+      const offset = Math.max(diff, -100)
+      setSwipeOffset(offset)
+    } else {
+      setSwipeOffset(0)
+    }
+  }
+
+  const handlePointerUp = (msg: Message) => {
+    if (swipeOffset < -50) {
+      handleReply(msg)
+    }
+    touchStart.current = null
+    setSwipingId(null)
+    setSwipeOffset(0)
   }
 
   if (!isLoaded) {
@@ -160,26 +190,47 @@ export function ChatRoom() {
               const isMe = msg.senderId === userId
               const isFirstInGroup = index === 0 || messages[index - 1].senderId !== msg.senderId
               const isLastInGroup = index === messages.length - 1 || messages[index + 1].senderId !== msg.senderId
-              
+              const isSwipingThis = swipingId === msg.id
+
               return (
                 <div 
                   key={msg.id} 
                   className={cn(
-                    "flex flex-col max-w-[85%] lg:max-w-[75%] animate-message group/msg min-w-0", 
+                    "relative flex flex-col max-w-[85%] lg:max-w-[75%] animate-message group/msg min-w-0 transition-transform duration-75 ease-out touch-pan-y", 
                     isMe ? "self-end items-end text-right" : "self-start items-start text-left",
                     isFirstInGroup && "mt-6"
                   )}
+                  style={{
+                    transform: isSwipingThis ? `translateX(${swipeOffset}px)` : 'translateX(0px)',
+                  }}
+                  onPointerDown={(e) => handlePointerDown(msg.id, e)}
+                  onPointerMove={isSwipingThis ? handlePointerMove : undefined}
+                  onPointerUp={() => handlePointerUp(msg)}
+                  onPointerCancel={() => {
+                    touchStart.current = null;
+                    setSwipingId(null);
+                    setSwipeOffset(0);
+                  }}
                   onDoubleClick={() => handleReply(msg)}
                 >
+                  {/* Reply Icon revealed behind bubble */}
+                  {isSwipingThis && swipeOffset < -20 && (
+                    <div className="absolute -right-12 top-1/2 -translate-y-1/2 opacity-60">
+                      <Reply className={cn(
+                        "w-5 h-5 transition-transform",
+                        swipeOffset < -50 ? "scale-125 text-blue-400" : "scale-100"
+                      )} />
+                    </div>
+                  )}
+
                   {!isMe && isFirstInGroup && (
                     <span className="text-[11px] text-muted-foreground ml-3 mb-1 font-semibold uppercase tracking-wider">
                       {msg.senderDisplayName}
                     </span>
                   )}
 
-                  {/* Reply Header inside bubble */}
                   <div className={cn(
-                    "flex flex-col transition-all relative break-all whitespace-pre-wrap overflow-hidden",
+                    "flex flex-col transition-all relative break-all whitespace-pre-wrap overflow-hidden select-none",
                     isMe ? "ig-bubble-me" : "ig-bubble-other",
                     !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
                     isMe && !isLastInGroup && "mb-0.5",
