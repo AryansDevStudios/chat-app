@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -9,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { 
   Camera, 
-  Image as ImageIcon,
+  ImageIcon,
   Loader2,
   X,
   Share,
@@ -61,7 +60,6 @@ export function ChatRoom() {
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const [replyTarget, setReplyTarget] = useState<{ id: string, content: string, senderDisplayName: string } | null>(null)
   
-  // Image Preview Interaction State (Mobile Optimized)
   const [scale, setScale] = useState(1)
   const [translate, setTranslate] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -103,7 +101,18 @@ export function ChatRoom() {
     }
   }, [messages])
 
-  // Mobile Touch Handlers for Pinch Zoom & Pan
+  const scrollToMessage = (msgId: string) => {
+    const element = document.getElementById(`msg-${msgId}`)
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" })
+      // Brief highlight effect
+      element.style.backgroundColor = "rgba(255, 255, 255, 0.15)"
+      setTimeout(() => {
+        element.style.backgroundColor = ""
+      }, 1500)
+    }
+  }
+
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       const dist = Math.hypot(
@@ -381,6 +390,7 @@ export function ChatRoom() {
                 isLastInGroup={index === messages.length - 1 || messages[index + 1].senderId !== msg.senderId}
                 onPreviewImage={setPreviewImageUrl}
                 onReply={() => handleReplyToMessage(msg)}
+                onJumpToMessage={scrollToMessage}
                 isMobile={isMobile}
               />
             ))}
@@ -610,13 +620,14 @@ export function ChatRoom() {
   )
 }
 
-function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImage, onReply, isMobile }: { 
+function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImage, onReply, onJumpToMessage, isMobile }: { 
   msg: Message, 
   isMe: boolean, 
   isFirstInGroup: boolean,
   isLastInGroup: boolean,
   onPreviewImage: (url: string) => void,
   onReply: () => void,
+  onJumpToMessage: (id: string) => void,
   isMobile: boolean
 }) {
   const [isPlaying, setIsPlaying] = useState(false)
@@ -643,8 +654,9 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
 
   return (
     <div 
+      id={`msg-${msg.id}`}
       className={cn(
-        "flex flex-col max-w-[85%] lg:max-w-[75%] animate-message relative select-none", 
+        "flex flex-col max-w-[85%] lg:max-w-[75%] animate-message relative select-none rounded-xl transition-colors duration-500", 
         isMe ? "self-end items-end" : "self-start items-start",
         isFirstInGroup && "mt-6"
       )}
@@ -668,7 +680,10 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
         )}
       >
         {msg.replyToId && (
-          <div className="px-3 pt-2 pb-1 opacity-70 border-b border-white/10 bg-black/20 flex items-center gap-2 max-w-full">
+          <div 
+            onClick={() => msg.replyToId && onJumpToMessage(msg.replyToId)}
+            className="px-3 pt-2 pb-1 opacity-70 border-b border-white/10 bg-black/20 flex items-center gap-2 max-w-full cursor-pointer hover:bg-black/40 transition-colors"
+          >
             <Reply className="w-3 h-3 shrink-0" />
             <div className="flex flex-col min-w-0">
               <span className="text-[10px] font-bold truncate">{msg.replyToSenderDisplayName}</span>
