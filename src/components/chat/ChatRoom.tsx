@@ -18,6 +18,7 @@ import {
   Pencil,
   Trash2,
   Share,
+  Home,
   Image as ImageIcon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -209,6 +210,10 @@ export function ChatRoom() {
     setSwipeOffset(0)
   }
 
+  const handleHomeClick = () => {
+    window.location.href = '/'
+  }
+
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center h-full w-full bg-black">
@@ -227,7 +232,15 @@ export function ChatRoom() {
       <header className="flex items-center justify-center px-4 h-16 border-b border-white/10 shrink-0 bg-black/80 backdrop-blur-md sticky top-0 z-20">
         <div className="flex items-center justify-between w-full max-w-3xl">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 lg:hidden -ml-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-10 w-10 rounded-full hover:bg-white/5 transition-colors"
+              onClick={handleHomeClick}
+            >
+              <Home className="w-5 h-5 text-white" />
+            </Button>
+            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 lg:hidden">
               <ChevronLeft className="w-7 h-7" />
             </Button>
             <div className="flex items-center gap-3">
