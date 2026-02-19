@@ -50,6 +50,7 @@ interface Message {
   replyToId?: string
   replyToContent?: string
   replyToSenderDisplayName?: string
+  edited?: boolean
 }
 
 export function ChatRoom() {
@@ -309,8 +310,11 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   const longPressTimer = useRef<NodeJS.Timeout | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-  // Long press logic (2 seconds)
+  // Long press logic (Exactly 2 seconds)
   const handlePointerDown = (e: React.PointerEvent) => {
+    // Clear any existing timer
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    
     longPressTimer.current = setTimeout(() => {
       setIsMenuOpen(true)
     }, 2000)
@@ -323,7 +327,7 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
     }
   }
 
-  // Swipe to reply logic
+  // Swipe to reply logic (Left Swipe like requested)
   const handleTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX
     isSwiping.current = true
@@ -333,7 +337,7 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
     if (!isSwiping.current) return
     const currentX = e.touches[0].clientX
     const diff = currentX - startX.current
-    // Only allow left swipe
+    // Only allow left swipe (sliding bubble to left)
     if (diff < 0) {
       setSwipeX(Math.max(diff, -100))
     }
@@ -382,7 +386,8 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
       )}
 
       <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <DropdownMenuTrigger asChild>
+        {/* DropdownMenuTrigger wrapping the bubble but explicitly ignoring left click for menu */}
+        <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
           <div className={cn(
             "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all active:scale-[0.98]",
             isMe ? "ig-bubble-me" : "ig-bubble-other",
@@ -411,7 +416,7 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
             {msg.content && (
               <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words relative">
                 {msg.content}
-                {(msg as any).edited && (
+                {msg.edited && (
                   <span className="text-[10px] opacity-50 ml-2 italic">(edited)</span>
                 )}
               </div>
@@ -427,7 +432,7 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
               <DropdownMenuItem onClick={onEdit} className="gap-2 focus:bg-white/10">
                 <Pencil className="w-4 h-4" /> Edit
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-400 focus:bg-red-400/10 focus:text-red-400">
+              <DropdownMenuItem onClick={() => onDelete()} className="gap-2 text-red-400 focus:bg-red-400/10 focus:text-red-400">
                 <Trash2 className="w-4 h-4" /> Unsend
               </DropdownMenuItem>
             </>
