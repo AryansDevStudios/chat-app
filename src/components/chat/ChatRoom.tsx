@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -8,15 +9,16 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { 
   Camera, 
+  Image as ImageIcon,
   Loader2,
   X,
   Share,
   Home,
-  CornerDownRight,
   Mic,
   Square,
   Play,
-  Pause
+  Pause,
+  SendHorizontal
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -28,6 +30,8 @@ import {
 } from "@/firebase"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface Message {
   id: string
@@ -61,6 +65,11 @@ export function ChatRoom() {
   const audioChunksRef = useRef<Blob[]>([])
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+  const [isCameraOpen, setIsCameraOpen] = useState(false)
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editableInputRef = useRef<HTMLDivElement>(null)
@@ -89,7 +98,7 @@ export function ChatRoom() {
       toast({
         variant: "destructive",
         title: "File too large",
-        description: "Please select an image/GIF under 1MB for Firestore storage.",
+        description: "Please select an image under 1MB.",
       })
       return
     }
@@ -111,20 +120,14 @@ export function ChatRoom() {
     const items = e.clipboardData?.items
     if (!items) return
     
-    let hasImage = false
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf("image") !== -1) {
         const file = items[i].getAsFile()
         if (file) {
           processImageFile(file)
-          hasImage = true
+          e.preventDefault()
         }
       }
-    }
-    
-    // If we found an image/gif, prevent it from inserting raw HTML into the contenteditable
-    if (hasImage) {
-      e.preventDefault()
     }
   }
 
@@ -133,6 +136,47 @@ export function ChatRoom() {
     const file = e.dataTransfer.files?.[0]
     if (file && (file.type.startsWith("image/") || file.type.includes("gif"))) {
       processImageFile(file)
+    }
+  }
+
+  const openCamera = async () => {
+    setIsCameraOpen(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+      setHasCameraPermission(true)
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error)
+      setHasCameraPermission(false)
+      toast({
+        variant: 'destructive',
+        title: 'Camera Access Denied',
+        description: 'Please enable camera permissions in your browser settings.',
+      })
+    }
+  }
+
+  const closeCamera = () => {
+    const stream = videoRef.current?.srcObject as MediaStream
+    stream?.getTracks().forEach(track => track.stop())
+    setIsCameraOpen(false)
+  }
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current
+      const canvas = canvasRef.current
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      const context = canvas.getContext('2d')
+      if (context) {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8)
+        setSelectedImage(dataUrl)
+        closeCamera()
+      }
     }
   }
 
@@ -170,7 +214,7 @@ export function ChatRoom() {
       toast({
         variant: "destructive",
         title: "Microphone Access Denied",
-        description: "Please enable microphone permissions to record voice messages.",
+        description: "Please enable microphone permissions.",
       })
     }
   }
@@ -294,11 +338,11 @@ export function ChatRoom() {
         </div>
       </ScrollArea>
 
-      <footer className="p-4 bg-black lg:pb-6 sticky bottom-0 z-20 shrink-0 border-t border-white/5">
-        <div className="max-w-2xl mx-auto flex flex-col gap-2">
+      <footer className="w-full bg-black shrink-0 border-t border-white/5 pb-safe z-30">
+        <div className="max-w-2xl mx-auto p-4 flex flex-col gap-2">
           
           {replyTo && (
-            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-primary rounded-t-xl">
+            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-primary rounded-t-xl animate-in slide-in-from-bottom-2">
               <div className="flex flex-col overflow-hidden">
                 <span className="text-xs font-bold text-primary">Replying to {replyTo.senderDisplayName}</span>
                 <span className="text-sm text-muted-foreground truncate">{replyTo.content || (replyTo.imageUrl ? "Image" : "Voice Message")}</span>
@@ -310,7 +354,7 @@ export function ChatRoom() {
           )}
 
           {editingMessage && (
-            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-blue-500 rounded-t-xl">
+            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-blue-500 rounded-t-xl animate-in slide-in-from-bottom-2">
               <div className="flex flex-col overflow-hidden">
                 <span className="text-xs font-bold text-blue-500">Editing Message</span>
                 <span className="text-sm text-muted-foreground truncate">{editingMessage.content}</span>
@@ -326,7 +370,7 @@ export function ChatRoom() {
           )}
 
           {selectedImage && (
-            <div className="relative w-24 h-24 mb-2 rounded-xl overflow-hidden border border-white/20">
+            <div className="relative w-24 h-24 mb-2 rounded-xl overflow-hidden border border-white/20 animate-in zoom-in-95">
               <Image src={selectedImage} alt="Preview" fill className="object-cover" unoptimized />
               <button onClick={() => setSelectedImage(null)} className="absolute top-1 right-1 bg-black/50 rounded-full p-1 z-10">
                 <X className="w-4 h-4 text-white" />
@@ -335,7 +379,7 @@ export function ChatRoom() {
           )}
 
           {audioBase64 && !isRecording && (
-            <div className="flex items-center gap-3 px-4 py-2 bg-white/5 border-l-2 border-red-500 rounded-t-xl">
+            <div className="flex items-center gap-3 px-4 py-2 bg-white/5 border-l-2 border-red-500 rounded-t-xl animate-in slide-in-from-bottom-2">
               <div className="flex items-center gap-2 flex-1">
                 <Mic className="w-4 h-4 text-red-500" />
                 <span className="text-sm font-medium">Voice message ready</span>
@@ -347,16 +391,27 @@ export function ChatRoom() {
           )}
 
           <div className="ig-input-pill shadow-2xl ring-1 ring-white/10 relative">
-            <div className="flex items-center gap-1 self-end mb-1">
+            <div className="flex items-center gap-0.5 self-end mb-1">
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
               <Button 
                 type="button" 
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 rounded-full bg-blue-500 hover:bg-blue-600 transition-all active:scale-90"
+                className="h-8 w-8 rounded-full hover:bg-white/10 transition-all"
                 onClick={() => fileInputRef.current?.click()}
+                title="Send Image"
               >
-                <Camera className="w-5 h-5 text-white" />
+                <ImageIcon className="w-5 h-5 text-white/70" />
+              </Button>
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 rounded-full hover:bg-white/10 transition-all"
+                onClick={openCamera}
+                title="Camera"
+              >
+                <Camera className="w-5 h-5 text-white/70" />
               </Button>
             </div>
             
@@ -406,8 +461,8 @@ export function ChatRoom() {
             {!isRecording && (
               <div className="flex items-center gap-1 self-end mb-1">
                 {(inputText.trim() || selectedImage || audioBase64) ? (
-                  <Button onClick={handleSendMessage} variant="ghost" className="text-[#0095f6] font-bold text-[15px] px-4">
-                    {editingMessage ? "Save" : "Send"}
+                  <Button onClick={handleSendMessage} variant="ghost" size="icon" className="h-8 w-8 rounded-full text-primary hover:bg-primary/10 transition-all">
+                    <SendHorizontal className="w-5 h-5" />
                   </Button>
                 ) : (
                   <Button 
@@ -417,7 +472,7 @@ export function ChatRoom() {
                     className="h-8 w-8 rounded-full hover:bg-white/10"
                     onClick={startRecording}
                   >
-                    <Mic className="w-5 h-5 text-white" />
+                    <Mic className="w-5 h-5 text-white/70" />
                   </Button>
                 )}
               </div>
@@ -425,6 +480,45 @@ export function ChatRoom() {
           </div>
         </div>
       </footer>
+
+      {/* Camera Modal */}
+      <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
+        <DialogContent className="sm:max-w-md bg-black border-white/10 p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b border-white/10">
+            <DialogTitle className="text-white flex items-center justify-between">
+              Take Photo
+              <Button variant="ghost" size="icon" onClick={closeCamera} className="rounded-full">
+                <X className="w-5 h-5" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="relative aspect-video bg-neutral-900 flex items-center justify-center">
+            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+            <canvas ref={canvasRef} className="hidden" />
+            
+            {hasCameraPermission === false && (
+              <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
+                <Alert variant="destructive">
+                  <AlertTitle>Camera Access Required</AlertTitle>
+                  <AlertDescription>
+                    Please allow camera access in your browser settings to take photos.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+          </div>
+          <div className="p-6 flex justify-center bg-black">
+            <Button 
+              size="lg" 
+              className="rounded-full w-16 h-16 border-4 border-white/20 bg-white hover:bg-white/90"
+              onClick={capturePhoto}
+              disabled={!hasCameraPermission}
+            >
+              <div className="w-12 h-12 rounded-full border-2 border-black/10" />
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -478,10 +572,8 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup }: {
         {msg.replyToId && (
           <div className="mx-2 mt-2 px-3 py-1.5 bg-black/20 border-l-2 border-white/40 rounded-lg mb-1 opacity-80">
             <div className="text-[11px] font-bold opacity-70 flex items-center gap-1">
-              <CornerDownRight className="w-3 h-3" />
-              {msg.replyToSenderDisplayName}
+              <span className="text-[13px] truncate">{msg.replyToContent}</span>
             </div>
-            <div className="text-[13px] truncate">{msg.replyToContent}</div>
           </div>
         )}
 
