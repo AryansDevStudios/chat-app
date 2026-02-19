@@ -5,7 +5,6 @@ import { collection, query, orderBy, serverTimestamp, doc } from "firebase/fires
 import { useChatSession } from "@/hooks/use-chat-session"
 import { WelcomeDialog } from "./WelcomeDialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { 
   Camera, 
@@ -25,8 +24,7 @@ import {
   useCollection, 
   useMemoFirebase, 
   addDocumentNonBlocking,
-  updateDocumentNonBlocking,
-  deleteDocumentNonBlocking
+  updateDocumentNonBlocking
 } from "@/firebase"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
@@ -65,7 +63,7 @@ export function ChatRoom() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editableInputRef = useRef<HTMLDivElement>(null)
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !roomId) return null
@@ -87,11 +85,11 @@ export function ChatRoom() {
   }, [messages])
 
   const processImageFile = (file: File) => {
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > 1 * 1024 * 1024) {
       toast({
         variant: "destructive",
         title: "File too large",
-        description: "Please select an image/GIF under 2MB.",
+        description: "Please select an image/GIF under 1MB for Firestore storage.",
       })
       return
     }
@@ -112,11 +110,21 @@ export function ChatRoom() {
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items
     if (!items) return
+    
+    let hasImage = false
     for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1 || items[i].type.indexOf("gif") !== -1) {
+      if (items[i].type.indexOf("image") !== -1) {
         const file = items[i].getAsFile()
-        if (file) processImageFile(file)
+        if (file) {
+          processImageFile(file)
+          hasImage = true
+        }
       }
+    }
+    
+    // If we found an image/gif, prevent it from inserting raw HTML into the contenteditable
+    if (hasImage) {
+      e.preventDefault()
     }
   }
 
@@ -185,18 +193,19 @@ export function ChatRoom() {
 
   const handleSendMessage = (e?: React.FormEvent) => {
     e?.preventDefault()
-    if ((!inputText.trim() && !selectedImage && !audioBase64) || !userId || !displayName || !roomId || !db) return
+    const content = editableInputRef.current?.innerText.trim() || ""
+    if ((!content && !selectedImage && !audioBase64) || !userId || !displayName || !roomId || !db) return
 
     if (editingMessage) {
       const docRef = doc(db, "rooms", roomId, "messages", editingMessage.id)
       updateDocumentNonBlocking(docRef, {
-        content: inputText.trim(),
+        content: content,
         edited: true
       })
       setEditingMessage(null)
     } else {
       const messageData: any = {
-        content: inputText.trim(),
+        content: content,
         imageUrl: selectedImage || null,
         audioUrl: audioBase64 || null,
         senderId: userId,
@@ -215,6 +224,9 @@ export function ChatRoom() {
       addDocumentNonBlocking(messagesRef, messageData)
     }
 
+    if (editableInputRef.current) {
+      editableInputRef.current.innerText = ""
+    }
     setInputText("")
     setSelectedImage(null)
     setAudioBase64(null)
@@ -286,7 +298,7 @@ export function ChatRoom() {
         <div className="max-w-2xl mx-auto flex flex-col gap-2">
           
           {replyTo && (
-            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-primary rounded-t-xl animate-in slide-in-from-bottom-2">
+            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-primary rounded-t-xl">
               <div className="flex flex-col overflow-hidden">
                 <span className="text-xs font-bold text-primary">Replying to {replyTo.senderDisplayName}</span>
                 <span className="text-sm text-muted-foreground truncate">{replyTo.content || (replyTo.imageUrl ? "Image" : "Voice Message")}</span>
@@ -298,13 +310,14 @@ export function ChatRoom() {
           )}
 
           {editingMessage && (
-            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-blue-500 rounded-t-xl animate-in slide-in-from-bottom-2">
+            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-blue-500 rounded-t-xl">
               <div className="flex flex-col overflow-hidden">
                 <span className="text-xs font-bold text-blue-500">Editing Message</span>
                 <span className="text-sm text-muted-foreground truncate">{editingMessage.content}</span>
               </div>
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
                 setEditingMessage(null);
+                if (editableInputRef.current) editableInputRef.current.innerText = "";
                 setInputText("");
               }}>
                 <X className="w-4 h-4" />
@@ -313,7 +326,7 @@ export function ChatRoom() {
           )}
 
           {selectedImage && (
-            <div className="relative w-24 h-24 mb-2 rounded-xl overflow-hidden border border-white/20 group animate-in zoom-in-95">
+            <div className="relative w-24 h-24 mb-2 rounded-xl overflow-hidden border border-white/20">
               <Image src={selectedImage} alt="Preview" fill className="object-cover" unoptimized />
               <button onClick={() => setSelectedImage(null)} className="absolute top-1 right-1 bg-black/50 rounded-full p-1 z-10">
                 <X className="w-4 h-4 text-white" />
@@ -322,7 +335,7 @@ export function ChatRoom() {
           )}
 
           {audioBase64 && !isRecording && (
-            <div className="flex items-center gap-3 px-4 py-2 bg-white/5 border-l-2 border-red-500 rounded-t-xl animate-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-3 px-4 py-2 bg-white/5 border-l-2 border-red-500 rounded-t-xl">
               <div className="flex items-center gap-2 flex-1">
                 <Mic className="w-4 h-4 text-red-500" />
                 <span className="text-sm font-medium">Voice message ready</span>
@@ -354,14 +367,7 @@ export function ChatRoom() {
                   {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
                 </span>
                 <span className="text-sm text-white/60 flex-1">Recording...</span>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  className="text-red-500 font-bold"
-                  onClick={cancelRecording}
-                >
-                  Cancel
-                </Button>
+                <Button type="button" variant="ghost" className="text-red-500 font-bold" onClick={cancelRecording}>Cancel</Button>
                 <Button 
                   type="button" 
                   variant="ghost" 
@@ -373,10 +379,10 @@ export function ChatRoom() {
                 </Button>
               </div>
             ) : (
-              <Textarea
-                ref={textareaRef}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+              <div
+                ref={editableInputRef}
+                contentEditable
+                onInput={(e) => setInputText(e.currentTarget.innerText)}
                 onPaste={handlePaste}
                 onDrop={handleDrop}
                 onKeyDown={(e) => {
@@ -388,14 +394,12 @@ export function ChatRoom() {
                     setReplyTo(null);
                     if (editingMessage) {
                       setEditingMessage(null);
-                      setInputText("");
+                      if (editableInputRef.current) editableInputRef.current.innerText = "";
                     }
                   }
                 }}
                 placeholder={editingMessage ? "Edit message..." : "Message..."}
-                className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 min-h-[40px] max-h-[120px] py-2.5 resize-none text-[15px] ml-2 scrollbar-none"
-                autoFocus
-                rows={1}
+                className="flex-1 bg-transparent border-none focus:outline-none text-white placeholder:text-white/40 min-h-[40px] max-h-[120px] py-2.5 overflow-y-auto whitespace-pre-wrap ml-2 scrollbar-none text-[15px]"
               />
             )}
 
@@ -462,7 +466,7 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup }: {
 
       <div 
         className={cn(
-          "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all active:scale-[0.98] group",
+          "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all group",
           isMe ? "ig-bubble-me" : "ig-bubble-other",
           !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
           isMe && !isLastInGroup && "mb-0.5",

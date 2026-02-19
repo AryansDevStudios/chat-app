@@ -41,12 +41,10 @@
 }
 
 .ig-bubble-me {
-  /* Updated to be more vibrant and slightly lighter */
   @apply rounded-[1.4rem] rounded-tr-[0.3rem] bg-gradient-to-br from-[#A307BA] via-[#E21E53] to-[#FF8C37] text-white shadow-lg font-medium tracking-tight;
 }
 
 .ig-bubble-other {
-  /* Refined to be slightly lighter than before for maximum clarity */
   @apply rounded-[1.4rem] rounded-tl-[0.3rem] bg-[#3a3a3a] text-white shadow-sm font-normal;
 }
 
@@ -68,4 +66,20 @@
 
 .animate-message {
   animation: message-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Contenteditable Placeholder */
+[contenteditable]:empty:before {
+  content: attr(placeholder);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: text;
+  pointer-events: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
