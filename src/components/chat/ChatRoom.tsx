@@ -149,7 +149,7 @@ export function ChatRoom() {
                 <div 
                   key={msg.id} 
                   className={cn(
-                    "flex flex-col max-w-[85%] lg:max-w-[75%] animate-message group/msg", 
+                    "flex flex-col max-w-[85%] lg:max-w-[75%] animate-message group/msg min-w-0", 
                     isMe ? "self-end items-end text-right" : "self-start items-start text-left",
                     isFirstInGroup && "mt-6"
                   )}
@@ -160,7 +160,7 @@ export function ChatRoom() {
                     </span>
                   )}
                   <div className={cn(
-                    "px-4 py-2.5 text-[15px] leading-[1.3] transition-all relative break-words whitespace-pre-wrap overflow-hidden",
+                    "px-4 py-2.5 text-[15px] leading-[1.3] transition-all relative break-all whitespace-pre-wrap overflow-hidden",
                     isMe ? "ig-bubble-me" : "ig-bubble-other",
                     !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
                     isMe && !isLastInGroup && "mb-0.5",
