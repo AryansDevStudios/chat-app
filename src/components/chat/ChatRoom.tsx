@@ -460,7 +460,8 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
     }, 2000)
   }
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    e.stopPropagation();
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current)
       longPressTimer.current = null
@@ -543,7 +544,8 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerUp}
-            // Block standard clicks from opening the menu
+            // Explicitly block standard clicks and pointer up/down from triggering the menu
+            // This ensures standard left-clicks are purely for message interaction (audio, images, etc.)
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
