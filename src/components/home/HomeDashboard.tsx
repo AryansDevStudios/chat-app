@@ -4,9 +4,8 @@ import { useState } from "react"
 import { useChatSession } from "@/hooks/use-chat-session"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Instagram, Plus, MessageCircle, Settings, LogIn, History, X } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Plus, MessageCircle, Settings, LogIn, History } from "lucide-react"
 import { WelcomeDialog } from "../chat/WelcomeDialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
@@ -37,26 +36,20 @@ export function HomeDashboard() {
 
       {/* Profile Section */}
       <section className="flex flex-col items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="relative group">
-          <Avatar className="h-32 w-32 border-2 border-white/10 ring-4 ring-primary/20 shadow-2xl">
-            <AvatarImage src={`https://picsum.photos/seed/${displayName}/200`} />
-            <AvatarFallback className="text-4xl bg-gradient-to-br from-primary/20 to-accent/20">
-              {displayName?.[0]?.toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <Button 
-            variant="secondary" 
-            size="icon" 
-            className="absolute bottom-0 right-0 rounded-full h-10 w-10 border-2 border-black"
-            onClick={() => setIsEditingName(true)}
-          >
-            <Settings className="w-5 h-5" />
-          </Button>
-        </div>
-
-        <div className="text-center space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome, {displayName}</h1>
-          <p className="text-muted-foreground">Ready to start a new conversation?</p>
+        <div className="relative">
+          <div className="text-center space-y-4">
+            <h1 className="text-4xl font-bold tracking-tight">Welcome, {displayName}</h1>
+            <p className="text-muted-foreground text-lg">Ready to start a new conversation?</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="rounded-full gap-2"
+              onClick={() => setIsEditingName(true)}
+            >
+              <Settings className="w-4 h-4" />
+              Edit Profile Name
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -108,10 +101,6 @@ export function HomeDashboard() {
                   onClick={() => joinRoom(id)}
                   className="flex items-center gap-4 p-3 rounded-2xl hover:bg-white/5 transition-colors text-left group"
                 >
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={`https://picsum.photos/seed/${id}/100`} />
-                    <AvatarFallback>{id[0].toUpperCase()}</AvatarFallback>
-                  </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-[15px] truncate">
                       {id.includes('_') ? id.split('_')[1].toUpperCase() : id}

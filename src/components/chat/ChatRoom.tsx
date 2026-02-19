@@ -13,7 +13,6 @@ import {
   X,
   Share,
   Home,
-  Reply,
   CornerDownRight,
   Mic,
   Square,
@@ -29,7 +28,6 @@ import {
   updateDocumentNonBlocking,
   deleteDocumentNonBlocking
 } from "@/firebase"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 
@@ -89,7 +87,7 @@ export function ChatRoom() {
   }, [messages])
 
   const processImageFile = (file: File) => {
-    if (file.size > 2 * 1024 * 1024) { // Increased to 2MB for GIFs
+    if (file.size > 2 * 1024 * 1024) {
       toast({
         variant: "destructive",
         title: "File too large",
@@ -237,18 +235,6 @@ export function ChatRoom() {
     toast({ title: "Link Copied", description: "Chat room link copied to clipboard!" });
   }
 
-  const handleEdit = (msg: Message) => {
-    setEditingMessage(msg)
-    setInputText(msg.content)
-    setReplyTo(null)
-  }
-
-  const handleDelete = (msgId: string) => {
-    if (!db || !roomId) return
-    const docRef = doc(db, "rooms", roomId, "messages", msgId)
-    deleteDocumentNonBlocking(docRef)
-  }
-
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center h-full w-full bg-black">
@@ -269,15 +255,9 @@ export function ChatRoom() {
             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-white/5" onClick={goHome}>
               <Home className="w-5 h-5" />
             </Button>
-            <div className="flex items-center gap-3">
-              <Avatar className="h-9 w-9 border border-white/10">
-                <AvatarImage src={`https://picsum.photos/seed/${roomId}/100`} />
-                <AvatarFallback>{roomName[0]}</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col">
-                <span className="text-[15px] font-bold leading-none">{roomName}</span>
-                <span className="text-[11px] text-muted-foreground mt-0.5">Active now</span>
-              </div>
+            <div className="flex flex-col">
+              <span className="text-[15px] font-bold leading-none">{roomName}</span>
+              <span className="text-[11px] text-muted-foreground mt-0.5">Active now</span>
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={handleShare} className="rounded-full">
@@ -294,9 +274,6 @@ export function ChatRoom() {
                 key={msg.id}
                 msg={msg}
                 isMe={msg.senderId === userId}
-                onReply={() => setReplyTo(msg)}
-                onEdit={() => handleEdit(msg)}
-                onDelete={() => handleDelete(msg.id)}
                 isFirstInGroup={index === 0 || messages[index - 1].senderId !== msg.senderId}
                 isLastInGroup={index === messages.length - 1 || messages[index + 1].senderId !== msg.senderId}
               />
@@ -448,12 +425,9 @@ export function ChatRoom() {
   )
 }
 
-function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, isLastInGroup }: { 
+function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup }: { 
   msg: Message, 
   isMe: boolean, 
-  onReply: () => void,
-  onEdit: () => void,
-  onDelete: () => void,
   isFirstInGroup: boolean,
   isLastInGroup: boolean
 }) {
@@ -496,10 +470,6 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
           msg.imageUrl && "p-0 overflow-hidden",
           msg.audioUrl && "min-w-[200px]"
         )}
-        onClick={(e) => {
-          // Explicitly prevent any parent menu logic
-          e.stopPropagation();
-        }}
       >
         {msg.replyToId && (
           <div className="mx-2 mt-2 px-3 py-1.5 bg-black/20 border-l-2 border-white/40 rounded-lg mb-1 opacity-80">
