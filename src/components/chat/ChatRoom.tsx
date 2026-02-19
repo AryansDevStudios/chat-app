@@ -18,7 +18,6 @@ import {
   Play,
   Pause,
   SendHorizontal,
-  Maximize2,
   Reply
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -734,9 +733,6 @@ function MessageBubble({ msg, isMe, isFirstInGroup, isLastInGroup, onPreviewImag
               className="object-contain w-full h-auto max-h-[400px] hover:opacity-90 transition-opacity" 
               unoptimized 
             />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-              <Maximize2 className="w-6 h-6 text-white drop-shadow-lg" />
-            </div>
           </div>
         )}
 
