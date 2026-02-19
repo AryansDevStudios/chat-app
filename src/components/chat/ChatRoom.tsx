@@ -18,7 +18,9 @@ import {
   Smile, 
   Loader2,
   Phone,
-  Video
+  Video,
+  X,
+  CornerDownRight
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from "@/firebase"
@@ -31,12 +33,16 @@ interface Message {
   senderDisplayName: string
   timestamp: any
   roomId: string
+  replyToId?: string
+  replyToContent?: string
+  replyToSenderDisplayName?: string
 }
 
 export function ChatRoom() {
   const db = useFirestore()
   const { userId, displayName, roomId, isLoaded, updateDisplayName } = useChatSession()
   const [inputText, setInputText] = useState("")
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const messagesQuery = useMemoFirebase(() => {
@@ -67,12 +73,22 @@ export function ChatRoom() {
       senderId: userId,
       senderDisplayName: displayName,
       timestamp: serverTimestamp(),
-      roomId: roomId
+      roomId: roomId,
+      ...(replyingTo ? {
+        replyToId: replyingTo.id,
+        replyToContent: replyingTo.content,
+        replyToSenderDisplayName: replyingTo.senderDisplayName
+      } : {})
     }
 
     const messagesRef = collection(db, "rooms", roomId, "messages")
     addDocumentNonBlocking(messagesRef, messageData)
     setInputText("")
+    setReplyingTo(null)
+  }
+
+  const handleReply = (msg: Message) => {
+    setReplyingTo(msg)
   }
 
   if (!isLoaded) {
@@ -153,20 +169,36 @@ export function ChatRoom() {
                     isMe ? "self-end items-end text-right" : "self-start items-start text-left",
                     isFirstInGroup && "mt-6"
                   )}
+                  onDoubleClick={() => handleReply(msg)}
                 >
                   {!isMe && isFirstInGroup && (
                     <span className="text-[11px] text-muted-foreground ml-3 mb-1 font-semibold uppercase tracking-wider">
                       {msg.senderDisplayName}
                     </span>
                   )}
+
+                  {/* Reply Header inside bubble */}
                   <div className={cn(
-                    "px-4 py-2.5 text-[15px] leading-[1.3] transition-all relative break-all whitespace-pre-wrap overflow-hidden",
+                    "flex flex-col transition-all relative break-all whitespace-pre-wrap overflow-hidden",
                     isMe ? "ig-bubble-me" : "ig-bubble-other",
                     !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
                     isMe && !isLastInGroup && "mb-0.5",
                     !isMe && !isLastInGroup && "mb-0.5"
                   )}>
-                    {msg.content}
+                    {msg.replyToContent && (
+                      <div className={cn(
+                        "mx-2 mt-2 px-3 py-2 rounded-lg border-l-2 bg-white/10 text-[13px] opacity-80 mb-1",
+                        isMe ? "border-white/30" : "border-white/20"
+                      )}>
+                        <p className="font-bold text-[11px] uppercase mb-0.5 opacity-60">
+                          {msg.replyToSenderDisplayName === displayName ? "You" : msg.replyToSenderDisplayName}
+                        </p>
+                        <p className="line-clamp-2 italic">{msg.replyToContent}</p>
+                      </div>
+                    )}
+                    <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words">
+                      {msg.content}
+                    </div>
                   </div>
                 </div>
               )
@@ -176,49 +208,77 @@ export function ChatRoom() {
       </ScrollArea>
 
       {/* Footer Input Bar */}
-      <footer className="p-4 bg-black lg:pb-6 sticky bottom-0 z-20 shrink-0">
-        <form 
-          onSubmit={handleSendMessage} 
-          className="max-w-2xl mx-auto ig-input-pill shadow-2xl ring-1 ring-white/10"
-        >
-          <div className="flex items-center gap-1">
-             <Button type="button" variant="ghost" size="icon" className="h-8 w-8 -ml-1 rounded-full bg-blue-500 hover:bg-blue-600 transition-all active:scale-90 flex-shrink-0">
-              <Camera className="w-5 h-5 text-white" />
-            </Button>
-          </div>
+      <footer className="p-4 bg-black lg:pb-6 sticky bottom-0 z-20 shrink-0 border-t border-white/5">
+        <div className="max-w-2xl mx-auto flex flex-col gap-2">
           
-          <Input
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Message..."
-            className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 h-10 text-[15px] p-0 font-normal ml-2"
-          />
-
-          {inputText.trim() ? (
-            <Button 
-              type="submit" 
-              variant="ghost" 
-              className="text-[#0095f6] font-bold text-[15px] p-0 px-4 hover:bg-transparent hover:text-blue-400 active:scale-95 transition-all flex-shrink-0"
-            >
-              Send
-            </Button>
-          ) : (
-            <div className="flex items-center gap-1 pr-1 flex-shrink-0">
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
-                <Mic className="w-5 h-5" />
-              </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
-                <ImageIcon className="w-5 h-5" />
-              </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
-                <Smile className="w-5 h-5" />
-              </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
-                <Heart className="w-5 h-5" />
+          {/* Reply Preview */}
+          {replyingTo && (
+            <div className="flex items-center justify-between px-4 py-2 bg-[#262626] rounded-t-2xl border-x border-t border-white/10 animate-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <CornerDownRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[11px] font-bold text-blue-400">Replying to {replyingTo.senderDisplayName}</span>
+                  <span className="text-xs text-muted-foreground truncate italic">{replyingTo.content}</span>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6 rounded-full hover:bg-white/10 shrink-0"
+                onClick={() => setReplyingTo(null)}
+              >
+                <X className="w-4 h-4" />
               </Button>
             </div>
           )}
-        </form>
+
+          <form 
+            onSubmit={handleSendMessage} 
+            className={cn(
+              "ig-input-pill shadow-2xl ring-1 ring-white/10 transition-all",
+              replyingTo && "rounded-t-none border-t-0"
+            )}
+          >
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 -ml-1 rounded-full bg-blue-500 hover:bg-blue-600 transition-all active:scale-90 flex-shrink-0">
+                <Camera className="w-5 h-5 text-white" />
+              </Button>
+            </div>
+            
+            <Input
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="Message..."
+              className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 h-10 text-[15px] p-0 font-normal ml-2"
+              autoFocus
+            />
+
+            {inputText.trim() ? (
+              <Button 
+                type="submit" 
+                variant="ghost" 
+                className="text-[#0095f6] font-bold text-[15px] p-0 px-4 hover:bg-transparent hover:text-blue-400 active:scale-95 transition-all flex-shrink-0"
+              >
+                Send
+              </Button>
+            ) : (
+              <div className="flex items-center gap-1 pr-1 flex-shrink-0">
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
+                  <Mic className="w-5 h-5" />
+                </Button>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
+                  <ImageIcon className="w-5 h-5" />
+                </Button>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
+                  <Smile className="w-5 h-5" />
+                </Button>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 transition-colors">
+                  <Heart className="w-5 h-5" />
+                </Button>
+              </div>
+            )}
+          </form>
+        </div>
       </footer>
     </div>
   )
