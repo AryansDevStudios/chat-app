@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Instagram } from "lucide-react"
 
 interface WelcomeDialogProps {
   isOpen: boolean
@@ -25,9 +24,6 @@ export function WelcomeDialog({ isOpen, onSave }: WelcomeDialogProps) {
     <Dialog open={isOpen}>
       <DialogContent className="sm:max-w-md bg-[#121212] border-white/10 rounded-[1.5rem] p-8">
         <DialogHeader className="space-y-4 text-center">
-          <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] flex items-center justify-center">
-            <Instagram className="w-9 h-9 text-white" />
-          </div>
           <div className="space-y-1">
             <DialogTitle className="text-2xl font-bold tracking-tight text-white">Direct</DialogTitle>
             <DialogDescription className="text-muted-foreground text-sm">
