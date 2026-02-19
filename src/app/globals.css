@@ -12,16 +12,16 @@
     --popover-foreground: 0 0% 100%;
     --primary: 326 100% 50%; /* Instagram-like pink/purple */
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 15%;
-    --secondary-foreground: 0 0% 94%;
+    --secondary: 0 0% 20%;
+    --secondary-foreground: 0 0% 98%;
     --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 60%;
+    --muted-foreground: 0 0% 65%;
     --accent: 210 100% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 15%;
-    --input: 0 0% 15%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
     --ring: 326 100% 50%;
     --radius: 1.5rem;
   }
@@ -41,11 +41,12 @@
 }
 
 .ig-bubble-me {
-  @apply rounded-[1.4rem] rounded-tr-[0.3rem] bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white shadow-sm;
+  @apply rounded-[1.4rem] rounded-tr-[0.3rem] bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white shadow-md font-medium;
 }
 
 .ig-bubble-other {
-  @apply rounded-[1.4rem] rounded-tl-[0.3rem] bg-[#262626] text-white shadow-sm;
+  /* Adjusted to be lighter for better visibility */
+  @apply rounded-[1.4rem] rounded-tl-[0.3rem] bg-[#363636] text-white shadow-sm;
 }
 
 /* Custom scrollbar */
@@ -56,7 +57,7 @@
   @apply bg-transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-white/10 rounded-full;
+  @apply bg-white/20 rounded-full hover:bg-white/30 transition-colors;
 }
 
 @keyframes message-in {
@@ -65,5 +66,5 @@
 }
 
 .animate-message {
-  animation: message-in 0.2s ease-out forwards;
+  animation: message-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
