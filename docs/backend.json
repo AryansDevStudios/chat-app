@@ -52,7 +52,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Message",
       "type": "object",
-      "description": "Represents a single message sent within a chat room, potentially including text or an image.",
+      "description": "Represents a single message sent within a chat room, potentially including text, an image, or a voice recording.",
       "properties": {
         "id": {
           "type": "string",
@@ -77,6 +77,10 @@
         "imageUrl": {
           "type": "string",
           "description": "Optional URL (or base64 string for prototype) of an attached image."
+        },
+        "audioUrl": {
+          "type": "string",
+          "description": "Optional URL (or base64 string for prototype) of an attached voice message."
         },
         "timestamp": {
           "type": "string",

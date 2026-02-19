@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { 
   ChevronLeft, 
+  ChevronDown,
   Camera, 
   Loader2,
   X,
@@ -18,7 +19,11 @@ import {
   Reply,
   Pencil,
   Trash2,
-  CornerDownRight
+  CornerDownRight,
+  Mic,
+  Square,
+  Play,
+  Pause
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -43,6 +48,7 @@ interface Message {
   id: string
   content: string
   imageUrl?: string
+  audioUrl?: string
   senderId: string
   senderDisplayName: string
   timestamp: any
@@ -63,6 +69,14 @@ export function ChatRoom() {
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editingMessage, setEditingMessage] = useState<Message | null>(null)
   
+  // Voice Recording State
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingDuration, setRecordingDuration] = useState(0)
+  const [audioBase64, setAudioBase64] = useState<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -104,9 +118,64 @@ export function ChatRoom() {
     }
   }
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64Audio = reader.result as string
+          setAudioBase64(base64Audio)
+        }
+        reader.readAsDataURL(audioBlob)
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true)
+      setRecordingDuration(0)
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1)
+      }, 1000)
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Microphone Access Denied",
+        description: "Please enable microphone permissions to record voice messages.",
+      })
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      setIsRecording(false)
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current)
+      }
+    }
+  }
+
+  const cancelRecording = () => {
+    stopRecording()
+    setAudioBase64(null)
+    setRecordingDuration(0)
+  }
+
   const handleSendMessage = (e?: React.FormEvent) => {
     e?.preventDefault()
-    if ((!inputText.trim() && !selectedImage) || !userId || !displayName || !roomId || !db) return
+    if ((!inputText.trim() && !selectedImage && !audioBase64) || !userId || !displayName || !roomId || !db) return
 
     if (editingMessage) {
       const docRef = doc(db, "rooms", roomId, "messages", editingMessage.id)
@@ -119,6 +188,7 @@ export function ChatRoom() {
       const messageData: any = {
         content: inputText.trim(),
         imageUrl: selectedImage || null,
+        audioUrl: audioBase64 || null,
         senderId: userId,
         senderDisplayName: displayName,
         timestamp: serverTimestamp(),
@@ -127,7 +197,7 @@ export function ChatRoom() {
 
       if (replyTo) {
         messageData.replyToId = replyTo.id
-        messageData.replyToContent = replyTo.content || "Image"
+        messageData.replyToContent = replyTo.content || (replyTo.imageUrl ? "Image" : "Voice Message")
         messageData.replyToSenderDisplayName = replyTo.senderDisplayName
       }
 
@@ -137,6 +207,7 @@ export function ChatRoom() {
 
     setInputText("")
     setSelectedImage(null)
+    setAudioBase64(null)
     setReplyTo(null)
   }
 
@@ -229,7 +300,7 @@ export function ChatRoom() {
             <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-l-2 border-primary rounded-t-xl animate-in slide-in-from-bottom-2">
               <div className="flex flex-col overflow-hidden">
                 <span className="text-xs font-bold text-primary">Replying to {replyTo.senderDisplayName}</span>
-                <span className="text-sm text-muted-foreground truncate">{replyTo.content || "Image"}</span>
+                <span className="text-sm text-muted-foreground truncate">{replyTo.content || (replyTo.imageUrl ? "Image" : "Voice Message")}</span>
               </div>
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setReplyTo(null)}>
                 <X className="w-4 h-4" />
@@ -261,7 +332,19 @@ export function ChatRoom() {
             </div>
           )}
 
-          <form onSubmit={handleSendMessage} className="ig-input-pill shadow-2xl ring-1 ring-white/10">
+          {audioBase64 && !isRecording && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-white/5 border-l-2 border-red-500 rounded-t-xl animate-in slide-in-from-bottom-2">
+              <div className="flex items-center gap-2 flex-1">
+                <Mic className="w-4 h-4 text-red-500" />
+                <span className="text-sm font-medium">Voice message ready</span>
+              </div>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setAudioBase64(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
+          <form onSubmit={handleSendMessage} className="ig-input-pill shadow-2xl ring-1 ring-white/10 relative">
             <div className="flex items-center gap-1">
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
               <Button 
@@ -275,18 +358,68 @@ export function ChatRoom() {
               </Button>
             </div>
             
-            <Input
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={editingMessage ? "Edit message..." : "Message..."}
-              className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 h-10 text-[15px] ml-2"
-              autoFocus
-            />
+            {isRecording ? (
+              <div className="flex-1 flex items-center gap-3 px-2">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-[15px] font-mono tabular-nums">
+                  {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                </span>
+                <span className="text-sm text-white/60 flex-1">Recording...</span>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  className="text-red-500 font-bold"
+                  onClick={cancelRecording}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-8 w-8 rounded-full bg-red-500 hover:bg-red-600"
+                  onClick={stopRecording}
+                >
+                  <Square className="w-4 h-4 text-white" />
+                </Button>
+              </div>
+            ) : (
+              <Input
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setReplyTo(null);
+                    if (editingMessage) {
+                      setEditingMessage(null);
+                      setInputText("");
+                    }
+                  }
+                }}
+                placeholder={editingMessage ? "Edit message..." : "Message..."}
+                className="flex-1 bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-white/40 h-10 text-[15px] ml-2"
+                autoFocus
+              />
+            )}
 
-            {(inputText.trim() || selectedImage) && (
-              <Button type="submit" variant="ghost" className="text-[#0095f6] font-bold text-[15px] px-4">
-                {editingMessage ? "Save" : "Send"}
-              </Button>
+            {!isRecording && (
+              <div className="flex items-center gap-1">
+                {(inputText.trim() || selectedImage || audioBase64) ? (
+                  <Button type="submit" variant="ghost" className="text-[#0095f6] font-bold text-[15px] px-4">
+                    {editingMessage ? "Save" : "Send"}
+                  </Button>
+                ) : (
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 rounded-full hover:bg-white/10"
+                    onClick={startRecording}
+                  >
+                    <Mic className="w-5 h-5 text-white" />
+                  </Button>
+                )}
+              </div>
             )}
           </form>
         </div>
@@ -309,12 +442,13 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   const isSwiping = useRef(false)
   const longPressTimer = useRef<NodeJS.Timeout | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  
+  // Audio playback state
+  const [isPlaying, setIsPlaying] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Long press logic (Exactly 2 seconds)
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Clear any existing timer
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    
     longPressTimer.current = setTimeout(() => {
       setIsMenuOpen(true)
     }, 2000)
@@ -327,7 +461,6 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
     }
   }
 
-  // Swipe to reply logic (Left Swipe like requested)
   const handleTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX
     isSwiping.current = true
@@ -337,7 +470,6 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
     if (!isSwiping.current) return
     const currentX = e.touches[0].clientX
     const diff = currentX - startX.current
-    // Only allow left swipe (sliding bubble to left)
     if (diff < 0) {
       setSwipeX(Math.max(diff, -100))
     }
@@ -349,6 +481,17 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
     }
     setSwipeX(0)
     isSwiping.current = false
+  }
+
+  const toggleAudio = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!audioRef.current) return
+    if (isPlaying) {
+      audioRef.current.pause()
+    } else {
+      audioRef.current.play()
+    }
+    setIsPlaying(!isPlaying)
   }
 
   return (
@@ -371,7 +514,6 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
         setIsMenuOpen(true)
       }}
     >
-      {/* Swipe Indicator */}
       <div 
         className="absolute right-[-40px] top-1/2 -translate-y-1/2 opacity-0 transition-opacity"
         style={{ opacity: swipeX < -40 ? 1 : 0 }}
@@ -386,17 +528,31 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
       )}
 
       <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        {/* DropdownMenuTrigger wrapping the bubble but explicitly ignoring left click for menu */}
         <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
           <div className={cn(
-            "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all active:scale-[0.98]",
+            "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all active:scale-[0.98] group",
             isMe ? "ig-bubble-me" : "ig-bubble-other",
             !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
             isMe && !isLastInGroup && "mb-0.5",
             !isMe && !isLastInGroup && "mb-0.5",
-            msg.imageUrl && "p-0 overflow-hidden"
+            msg.imageUrl && "p-0 overflow-hidden",
+            msg.audioUrl && "min-w-[200px]"
           )}>
-            {/* Reply Preview in Bubble */}
+            
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsMenuOpen(true);
+              }}
+              className={cn(
+                "absolute top-1 right-1 p-0.5 rounded-full bg-black/30 backdrop-blur-md opacity-0 transition-opacity md:group-hover:opacity-100 z-10",
+                isMenuOpen && "opacity-100"
+              )}
+            >
+              <ChevronDown className="w-4 h-4 text-white/90" />
+            </button>
+
             {msg.replyToId && (
               <div className="mx-2 mt-2 px-3 py-1.5 bg-black/20 border-l-2 border-white/40 rounded-lg mb-1 opacity-80">
                 <div className="text-[11px] font-bold opacity-70 flex items-center gap-1">
@@ -413,6 +569,33 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
               </div>
             )}
 
+            {msg.audioUrl && (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40"
+                  onClick={toggleAudio}
+                >
+                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                </Button>
+                <div className="flex-1 flex flex-col gap-1">
+                  <div className="h-1 w-full bg-white/20 rounded-full relative overflow-hidden">
+                    <div className={cn("absolute inset-0 bg-white/60", isPlaying ? "animate-progress" : "w-0")} />
+                  </div>
+                  <span className="text-[10px] opacity-60">Voice Message</span>
+                </div>
+                <audio 
+                  ref={audioRef} 
+                  src={msg.audioUrl} 
+                  onEnded={() => setIsPlaying(false)}
+                  onPause={() => setIsPlaying(false)}
+                  onPlay={() => setIsPlaying(true)}
+                  className="hidden" 
+                />
+              </div>
+            )}
+
             {msg.content && (
               <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words relative">
                 {msg.content}
@@ -424,15 +607,17 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align={isMe ? "end" : "start"} className="bg-[#262626] border-white/10 text-white min-w-[120px]">
-          <DropdownMenuItem onClick={onReply} className="gap-2 focus:bg-white/10">
+          <DropdownMenuItem onClick={onReply} className="gap-2 focus:bg-white/10 cursor-pointer">
             <Reply className="w-4 h-4" /> Reply
           </DropdownMenuItem>
           {isMe && (
             <>
-              <DropdownMenuItem onClick={onEdit} className="gap-2 focus:bg-white/10">
-                <Pencil className="w-4 h-4" /> Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDelete()} className="gap-2 text-red-400 focus:bg-red-400/10 focus:text-red-400">
+              {msg.content && (
+                <DropdownMenuItem onClick={onEdit} className="gap-2 focus:bg-white/10 cursor-pointer">
+                  <Pencil className="w-4 h-4" /> Edit
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => onDelete()} className="gap-2 text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer">
                 <Trash2 className="w-4 h-4" /> Unsend
               </DropdownMenuItem>
             </>
