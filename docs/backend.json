@@ -5,15 +5,15 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user's profile within the CharcoalChat application, identified by a randomly generated ID and a chosen display name. There is no traditional user authentication, so this profile primarily serves to identify messages sent by a particular client session.",
+      "description": "Represents a user's profile within the CharcoalChat application.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the UserProfile entity. This is the randomUserID generated for a user's session."
+          "description": "Unique identifier for the UserProfile entity."
         },
         "displayName": {
           "type": "string",
-          "description": "The chosen display name for the user, used to identify them in chat conversations."
+          "description": "The chosen display name for the user."
         },
         "createdAt": {
           "type": "string",
@@ -31,11 +31,11 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Room",
       "type": "object",
-      "description": "Represents a chat room where users can exchange messages. Each room has a unique identifier.",
+      "description": "Represents a chat room where users can exchange messages.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Room entity. This is the unique roomID generated for a chat session."
+          "description": "Unique identifier for the Room entity."
         },
         "createdAt": {
           "type": "string",
@@ -52,7 +52,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Message",
       "type": "object",
-      "description": "Represents a single text message sent within a chat room, potentially in reply to another message.",
+      "description": "Represents a single message sent within a chat room, potentially including text or an image.",
       "properties": {
         "id": {
           "type": "string",
@@ -72,7 +72,11 @@
         },
         "content": {
           "type": "string",
-          "description": "The actual text content of the message."
+          "description": "The text content of the message."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Optional URL (or base64 string for prototype) of an attached image."
         },
         "timestamp": {
           "type": "string",
@@ -97,7 +101,6 @@
         "roomId",
         "senderId",
         "senderDisplayName",
-        "content",
         "timestamp"
       ]
     }
@@ -117,13 +120,7 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores user profile information.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user's anonymous session."
-            }
-          ]
+          "description": "Stores user profile information."
         }
       },
       {
@@ -133,13 +130,7 @@
           "schema": {
             "$ref": "#/backend/entities/Room"
           },
-          "description": "Stores metadata for each chat room.",
-          "params": [
-            {
-              "name": "roomId",
-              "description": "The unique identifier for the chat room."
-            }
-          ]
+          "description": "Stores metadata for each chat room."
         }
       },
       {
@@ -149,20 +140,9 @@
           "schema": {
             "$ref": "#/backend/entities/Message"
           },
-          "description": "Stores individual chat messages within a specific room.",
-          "params": [
-            {
-              "name": "roomId",
-              "description": "The unique identifier of the parent chat room."
-            },
-            {
-              "name": "messageId",
-              "description": "The unique identifier for the message within the room."
-            }
-          ]
+          "description": "Stores individual chat messages."
         }
       }
-    ],
-    "reasoning": "Standardized chat structure with support for denormalized reply data to enable 'reply to' UI features without additional lookups."
+    ]
   }
 }

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -16,7 +17,8 @@ import {
   Reply,
   Pencil,
   Trash2,
-  Share
+  Share,
+  Image as ImageIcon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -35,10 +37,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
+import Image from "next/image"
 
 interface Message {
   id: string
   content: string
+  imageUrl?: string
   senderId: string
   senderDisplayName: string
   timestamp: any
@@ -54,13 +58,15 @@ export function ChatRoom() {
   const { toast } = useToast()
   const { userId, displayName, roomId, isLoaded, updateDisplayName } = useChatSession()
   const [inputText, setInputText] = useState("")
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
   const [editingMessage, setEditingMessage] = useState<Message | null>(null)
   const [swipingId, setSwipingId] = useState<string | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
+  
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const touchStart = useRef<number | null>(null)
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null)
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !roomId) return null
@@ -81,9 +87,28 @@ export function ChatRoom() {
     }
   }, [messages])
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 1024 * 1024) { // 1MB limit for Base64 prototype
+        toast({
+          variant: "destructive",
+          title: "File too large",
+          description: "Please select an image under 1MB for this prototype.",
+        })
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        setSelectedImage(event.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
   const handleSendMessage = (e?: React.FormEvent) => {
     e?.preventDefault()
-    if (!inputText.trim() || !userId || !displayName || !roomId || !db) return
+    if ((!inputText.trim() && !selectedImage) || !userId || !displayName || !roomId || !db) return
 
     if (editingMessage) {
       const messageRef = doc(db, "rooms", roomId, "messages", editingMessage.id)
@@ -96,6 +121,7 @@ export function ChatRoom() {
     } else {
       const messageData = {
         content: inputText.trim(),
+        imageUrl: selectedImage || null,
         senderId: userId,
         senderDisplayName: displayName,
         timestamp: serverTimestamp(),
@@ -112,6 +138,7 @@ export function ChatRoom() {
     }
 
     setInputText("")
+    setSelectedImage(null)
     setReplyingTo(null)
   }
 
@@ -160,20 +187,11 @@ export function ChatRoom() {
   const handlePointerDown = (id: string, e: React.PointerEvent) => {
     touchStart.current = e.clientX
     setSwipingId(id)
-    
-    longPressTimer.current = setTimeout(() => {
-    }, 500)
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (touchStart.current === null) return
     const diff = e.clientX - touchStart.current
-    
-    if (Math.abs(diff) > 10 && longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-
     if (diff < 0) {
       const offset = Math.max(diff, -100)
       setSwipeOffset(offset)
@@ -183,11 +201,6 @@ export function ChatRoom() {
   }
 
   const handlePointerUp = (msg: Message) => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-
     if (swipeOffset < -50) {
       handleReply(msg)
     }
@@ -252,9 +265,6 @@ export function ChatRoom() {
             <div className="text-center">
               <h2 className="text-2xl font-bold tracking-tight">{roomName}</h2>
               <p className="text-sm text-muted-foreground mt-1 font-medium">Instagram Group • {messages?.length || 0} messages</p>
-              <Button variant="secondary" size="sm" className="mt-4 rounded-lg bg-[#262626] hover:bg-[#363636] font-bold px-6 border border-white/5">
-                View Profile
-              </Button>
             </div>
           </div>
 
@@ -308,7 +318,8 @@ export function ChatRoom() {
                         isMe ? "ig-bubble-me" : "ig-bubble-other",
                         !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
                         isMe && !isLastInGroup && "mb-0.5",
-                        !isMe && !isLastInGroup && "mb-0.5"
+                        !isMe && !isLastInGroup && "mb-0.5",
+                        msg.imageUrl && "p-0 overflow-hidden"
                       )}>
                         {msg.replyToContent && (
                           <div className={cn(
@@ -321,14 +332,29 @@ export function ChatRoom() {
                             <p className="line-clamp-2 italic">{msg.replyToContent}</p>
                           </div>
                         )}
-                        <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words relative">
-                          {msg.content}
-                          {msg.isEdited && (
-                            <span className="text-[9px] opacity-50 block mt-1 uppercase font-bold tracking-tighter">
-                              Edited
-                            </span>
-                          )}
-                        </div>
+                        
+                        {msg.imageUrl && (
+                          <div className="relative w-full aspect-square min-w-[200px] max-w-sm">
+                            <Image 
+                              src={msg.imageUrl} 
+                              alt="Shared media" 
+                              fill 
+                              className="object-cover"
+                              unoptimized={msg.imageUrl.startsWith('data:')}
+                            />
+                          </div>
+                        )}
+
+                        {msg.content && (
+                          <div className="px-4 py-2.5 text-[15px] leading-[1.3] break-words relative">
+                            {msg.content}
+                            {msg.isEdited && (
+                              <span className="text-[9px] opacity-50 block mt-1 uppercase font-bold tracking-tighter">
+                                Edited
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align={isMe ? "end" : "start"} className="bg-[#262626] border-white/10 text-white min-w-[120px]">
@@ -358,6 +384,18 @@ export function ChatRoom() {
       <footer className="p-4 bg-black lg:pb-6 sticky bottom-0 z-20 shrink-0 border-t border-white/5">
         <div className="max-w-2xl mx-auto flex flex-col gap-2">
           
+          {selectedImage && (
+            <div className="relative w-24 h-24 mb-2 rounded-xl overflow-hidden border border-white/20 group animate-in zoom-in-95">
+              <Image src={selectedImage} alt="Preview" fill className="object-cover" />
+              <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute top-1 right-1 bg-black/50 rounded-full p-1 hover:bg-black/70 transition-colors"
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          )}
+
           {(replyingTo || editingMessage) && (
             <div className="flex items-center justify-between px-4 py-2 bg-[#262626] rounded-t-2xl border-x border-t border-white/10 animate-in slide-in-from-bottom-2 duration-200">
               <div className="flex items-center gap-2 overflow-hidden">
@@ -366,7 +404,7 @@ export function ChatRoom() {
                     <CornerDownRight className="w-4 h-4 text-blue-400 shrink-0" />
                     <div className="flex flex-col min-w-0">
                       <span className="text-[11px] font-bold text-blue-400 uppercase">Replying to {replyingTo.senderDisplayName}</span>
-                      <span className="text-xs text-muted-foreground truncate italic">{replyingTo.content}</span>
+                      <span className="text-xs text-muted-foreground truncate italic">{replyingTo.content || "Image"}</span>
                     </div>
                   </>
                 ) : (
@@ -402,7 +440,20 @@ export function ChatRoom() {
             )}
           >
             <div className="flex items-center gap-1">
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 -ml-1 rounded-full bg-blue-500 hover:bg-blue-600 transition-all active:scale-90 flex-shrink-0">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleFileSelect} 
+              />
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 -ml-1 rounded-full bg-blue-500 hover:bg-blue-600 transition-all active:scale-90 flex-shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <Camera className="w-5 h-5 text-white" />
               </Button>
             </div>
@@ -415,7 +466,7 @@ export function ChatRoom() {
               autoFocus
             />
 
-            {(inputText.trim() || editingMessage) && (
+            {(inputText.trim() || selectedImage || editingMessage) && (
               <Button 
                 type="submit" 
                 variant="ghost" 
