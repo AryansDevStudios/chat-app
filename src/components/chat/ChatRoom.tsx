@@ -1,6 +1,7 @@
+
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect } from "react"
 import { collection, query, orderBy, serverTimestamp } from "firebase/firestore"
 import { useChatSession } from "@/hooks/use-chat-session"
 import { WelcomeDialog } from "./WelcomeDialog"
@@ -56,12 +57,12 @@ export function ChatRoom() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   
-  // Image Preview Interaction State
+  // Image Preview Interaction State (Mobile Optimized)
   const [scale, setScale] = useState(1)
   const [translate, setTranslate] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [lastPos, setLastPos] = useState({ x: 0, y: 0 })
-  const previewContainerRef = useRef<HTMLDivElement>(null)
+  const [initialDistance, setInitialDistance] = useState<number | null>(null)
   
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
@@ -98,62 +99,48 @@ export function ChatRoom() {
     }
   }, [messages])
 
-  // Improved Wheel zoom handler to catch trackpad pinch and prevent page zoom
-  useEffect(() => {
-    const container = previewContainerRef.current
-    if (!container || !previewImageUrl) return
-
-    const handleWheelEvent = (e: WheelEvent) => {
-      // Trackpad pinch-to-zoom is represented as a wheel event with ctrlKey: true
-      if (e.ctrlKey) {
-        e.preventDefault()
-        const zoomSpeed = 0.01
-        const delta = -e.deltaY * zoomSpeed
-        setScale(prev => {
-          const newScale = Math.min(Math.max(1, prev + delta), 8)
-          // If returning to scale 1, reset translation
-          if (newScale === 1) setTranslate({ x: 0, y: 0 })
-          return newScale
-        })
-      } else if (scale > 1) {
-        // Standard scrolling pans when zoomed
-        setTranslate(prev => ({
-          x: prev.x - e.deltaX,
-          y: prev.y - e.deltaY
-        }))
-      }
-    }
-
-    // Use non-passive listener to allow preventDefault()
-    container.addEventListener('wheel', handleWheelEvent, { passive: false })
-    return () => container.removeEventListener('wheel', handleWheelEvent)
-  }, [previewImageUrl, scale])
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (scale > 1) {
+  // Mobile Touch Handlers for Pinch Zoom & Pan
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].pageX - e.touches[1].pageX,
+        e.touches[0].pageY - e.touches[1].pageY
+      )
+      setInitialDistance(dist)
+    } else if (e.touches.length === 1 && scale > 1) {
       setIsDragging(true)
-      setLastPos({ x: e.clientX, y: e.clientY })
-      const target = e.currentTarget as HTMLElement
-      target.setPointerCapture(e.pointerId)
+      setLastPos({ x: e.touches[0].pageX, y: e.touches[0].pageY })
     }
   }
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (isDragging) {
-      const deltaX = e.clientX - lastPos.x
-      const deltaY = e.clientY - lastPos.y
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && initialDistance !== null) {
+      const dist = Math.hypot(
+        e.touches[0].pageX - e.touches[1].pageX,
+        e.touches[0].pageY - e.touches[1].pageY
+      )
+      const zoomSensitivity = 0.01
+      const delta = (dist - initialDistance) * zoomSensitivity
+      setScale(prev => {
+        const newScale = Math.min(Math.max(1, prev + delta), 8)
+        if (newScale === 1) setTranslate({ x: 0, y: 0 })
+        return newScale
+      })
+      setInitialDistance(dist)
+    } else if (e.touches.length === 1 && isDragging && scale > 1) {
+      const deltaX = e.touches[0].pageX - lastPos.x
+      const deltaY = e.touches[0].pageY - lastPos.y
       setTranslate(prev => ({
         x: prev.x + deltaX,
         y: prev.y + deltaY
       }))
-      setLastPos({ x: e.clientX, y: e.clientY })
+      setLastPos({ x: e.touches[0].pageX, y: e.touches[0].pageY })
     }
   }
 
-  const handlePointerUp = (e: React.PointerEvent) => {
+  const handleTouchEnd = () => {
+    setInitialDistance(null)
     setIsDragging(false)
-    const target = e.currentTarget as HTMLElement
-    target.releasePointerCapture(e.pointerId)
   }
 
   const processImageFile = (file: File) => {
@@ -549,12 +536,10 @@ export function ChatRoom() {
             </div>
           </DialogHeader>
           <div 
-            ref={previewContainerRef}
             className="flex-1 overflow-hidden relative bg-black select-none touch-none"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             style={{ touchAction: 'none' }}
           >
             {previewImageUrl && (
@@ -562,7 +547,7 @@ export function ChatRoom() {
                 className="absolute inset-0 flex items-center justify-center pointer-events-none"
                 style={{ 
                   transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
-                  transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+                  transition: initialDistance ? 'none' : 'transform 0.1s ease-out'
                 }}
               >
                 <Image 
