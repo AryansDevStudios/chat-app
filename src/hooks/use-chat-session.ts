@@ -1,7 +1,10 @@
+'use client';
+
 import { useState, useEffect } from 'react';
+import { useAuth, useUser } from '@/firebase';
+import { signInAnonymously } from 'firebase/auth';
 
 const STORAGE_KEYS = {
-  USER_ID: 'charcoal_chat_user_id',
   DISPLAY_NAME: 'charcoal_chat_display_name',
   ROOM_ID: 'charcoal_chat_room_id',
 };
@@ -9,20 +12,23 @@ const STORAGE_KEYS = {
 const generateId = (prefix: string) => `${prefix}_${Math.random().toString(36).substr(2, 9)}`;
 
 export function useChatSession() {
-  const [userId, setUserId] = useState<string | null>(null);
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    // Sync with localStorage on mount
-    let storedUserId = localStorage.getItem(STORAGE_KEYS.USER_ID);
-    if (!storedUserId) {
-      storedUserId = generateId('user');
-      localStorage.setItem(STORAGE_KEYS.USER_ID, storedUserId);
-    }
-    setUserId(storedUserId);
+    if (!auth) return;
 
+    // Trigger anonymous sign-in if not logged in
+    if (!user && !isUserLoading) {
+      signInAnonymously(auth).catch(console.error);
+    }
+  }, [auth, user, isUserLoading]);
+
+  useEffect(() => {
+    // Sync with localStorage on mount
     const storedDisplayName = localStorage.getItem(STORAGE_KEYS.DISPLAY_NAME);
     setDisplayName(storedDisplayName);
 
@@ -44,8 +50,13 @@ export function useChatSession() {
     }
     
     setRoomId(currentRoom);
-    setIsLoaded(true);
   }, []);
+
+  useEffect(() => {
+    if (user && roomId) {
+      setIsLoaded(true);
+    }
+  }, [user, roomId]);
 
   const updateDisplayName = (name: string) => {
     localStorage.setItem(STORAGE_KEYS.DISPLAY_NAME, name);
@@ -53,10 +64,10 @@ export function useChatSession() {
   };
 
   return {
-    userId,
+    userId: user?.uid || null,
     displayName,
     roomId,
-    isLoaded,
+    isLoaded: isLoaded && !isUserLoading,
     updateDisplayName,
   };
 }
