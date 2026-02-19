@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -10,21 +9,18 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { 
   ChevronLeft, 
-  Info, 
   Camera, 
   Mic, 
   Image as ImageIcon, 
   Heart, 
   Smile, 
   Loader2,
-  Phone,
-  Video,
   X,
   CornerDownRight,
   Reply,
-  MoreVertical,
   Pencil,
-  Trash2
+  Trash2,
+  Share
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -42,6 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useToast } from "@/hooks/use-toast"
 
 interface Message {
   id: string
@@ -58,6 +55,7 @@ interface Message {
 
 export function ChatRoom() {
   const db = useFirestore()
+  const { toast } = useToast()
   const { userId, displayName, roomId, isLoaded, updateDisplayName } = useChatSession()
   const [inputText, setInputText] = useState("")
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
@@ -92,7 +90,6 @@ export function ChatRoom() {
     if (!inputText.trim() || !userId || !displayName || !roomId || !db) return
 
     if (editingMessage) {
-      // Handle Edit
       const messageRef = doc(db, "rooms", roomId, "messages", editingMessage.id)
       updateDocumentNonBlocking(messageRef, {
         content: inputText.trim(),
@@ -101,7 +98,6 @@ export function ChatRoom() {
       })
       setEditingMessage(null)
     } else {
-      // Handle New Message
       const messageData = {
         content: inputText.trim(),
         senderId: userId,
@@ -140,13 +136,36 @@ export function ChatRoom() {
     deleteDocumentNonBlocking(messageRef)
   }
 
+  const handleShare = async () => {
+    const url = window.location.href
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'CharcoalChat',
+          text: `Join me in this chat room!`,
+          url: url,
+        })
+      } catch (err) {
+        console.error("Error sharing:", err)
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url)
+        toast({
+          title: "Link Copied",
+          description: "Chat room link copied to clipboard!",
+        })
+      } catch (err) {
+        console.error("Clipboard error:", err)
+      }
+    }
+  }
+
   const handlePointerDown = (id: string, e: React.PointerEvent) => {
     touchStart.current = e.clientX
     setSwipingId(id)
     
-    // Simple long press detection for mobile
     longPressTimer.current = setTimeout(() => {
-      // We could trigger a separate menu here, but we'll rely on ContextMenu/Dropdown
     }, 500)
   }
 
@@ -154,13 +173,11 @@ export function ChatRoom() {
     if (touchStart.current === null) return
     const diff = e.clientX - touchStart.current
     
-    // If they move too much, it's not a long press
     if (Math.abs(diff) > 10 && longPressTimer.current) {
       clearTimeout(longPressTimer.current)
       longPressTimer.current = null
     }
 
-    // Only allow sliding to the left (negative diff)
     if (diff < 0) {
       const offset = Math.max(diff, -100)
       setSwipeOffset(offset)
@@ -216,14 +233,13 @@ export function ChatRoom() {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-white/5 transition-colors">
-              <Phone className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-white/5 transition-colors">
-              <Video className="w-6 h-6" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-white/5 transition-colors">
-              <Info className="w-6 h-6" />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-10 w-10 rounded-full hover:bg-white/5 transition-colors"
+              onClick={handleShare}
+            >
+              <Share className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -232,7 +248,6 @@ export function ChatRoom() {
       {/* Message List */}
       <ScrollArea ref={scrollRef} className="flex-1">
         <div className="flex flex-col max-w-2xl mx-auto px-4 py-8 min-h-full">
-          {/* Profile Header */}
           <div className="flex flex-col items-center py-12 gap-4">
             <Avatar className="h-24 w-24 border-2 border-white/5 ring-1 ring-white/10 shadow-2xl transition-transform hover:scale-105 duration-300">
               <AvatarImage src={`https://picsum.photos/seed/${roomId}/200`} />
@@ -275,7 +290,6 @@ export function ChatRoom() {
                   }}
                   onDoubleClick={() => handleReply(msg)}
                 >
-                  {/* Reply Icon revealed behind bubble */}
                   {isSwipingThis && swipeOffset < -20 && (
                     <div className="absolute -right-12 top-1/2 -translate-y-1/2 opacity-60">
                       <Reply className={cn(
@@ -348,7 +362,6 @@ export function ChatRoom() {
       <footer className="p-4 bg-black lg:pb-6 sticky bottom-0 z-20 shrink-0 border-t border-white/5">
         <div className="max-w-2xl mx-auto flex flex-col gap-2">
           
-          {/* Context Previews (Reply/Edit) */}
           {(replyingTo || editingMessage) && (
             <div className="flex items-center justify-between px-4 py-2 bg-[#262626] rounded-t-2xl border-x border-t border-white/10 animate-in slide-in-from-bottom-2 duration-200">
               <div className="flex items-center gap-2 overflow-hidden">
