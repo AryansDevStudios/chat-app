@@ -1,7 +1,6 @@
-
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { collection, query, orderBy, serverTimestamp } from "firebase/firestore"
 import { useChatSession } from "@/hooks/use-chat-session"
 import { WelcomeDialog } from "./WelcomeDialog"
@@ -62,6 +61,7 @@ export function ChatRoom() {
   const [translate, setTranslate] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [lastPos, setLastPos] = useState({ x: 0, y: 0 })
+  const previewContainerRef = useRef<HTMLDivElement>(null)
   
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
@@ -98,18 +98,36 @@ export function ChatRoom() {
     }
   }, [messages])
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey) {
-      e.preventDefault()
-      const delta = -e.deltaY * 0.01
-      setScale(prev => Math.min(Math.max(1, prev + delta), 8))
-    } else if (scale > 1) {
-      setTranslate(prev => ({
-        x: prev.x - e.deltaX,
-        y: prev.y - e.deltaY
-      }))
+  // Improved Wheel zoom handler to catch trackpad pinch and prevent page zoom
+  useEffect(() => {
+    const container = previewContainerRef.current
+    if (!container || !previewImageUrl) return
+
+    const handleWheelEvent = (e: WheelEvent) => {
+      // Trackpad pinch-to-zoom is represented as a wheel event with ctrlKey: true
+      if (e.ctrlKey) {
+        e.preventDefault()
+        const zoomSpeed = 0.01
+        const delta = -e.deltaY * zoomSpeed
+        setScale(prev => {
+          const newScale = Math.min(Math.max(1, prev + delta), 8)
+          // If returning to scale 1, reset translation
+          if (newScale === 1) setTranslate({ x: 0, y: 0 })
+          return newScale
+        })
+      } else if (scale > 1) {
+        // Standard scrolling pans when zoomed
+        setTranslate(prev => ({
+          x: prev.x - e.deltaX,
+          y: prev.y - e.deltaY
+        }))
+      }
     }
-  }
+
+    // Use non-passive listener to allow preventDefault()
+    container.addEventListener('wheel', handleWheelEvent, { passive: false })
+    return () => container.removeEventListener('wheel', handleWheelEvent)
+  }, [previewImageUrl, scale])
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (scale > 1) {
@@ -531,12 +549,13 @@ export function ChatRoom() {
             </div>
           </DialogHeader>
           <div 
+            ref={previewContainerRef}
             className="flex-1 overflow-hidden relative bg-black select-none touch-none"
-            onWheel={handleWheel}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerUp}
+            style={{ touchAction: 'none' }}
           >
             {previewImageUrl && (
               <div 
