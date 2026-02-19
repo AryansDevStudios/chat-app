@@ -10,8 +10,6 @@ const STORAGE_KEYS = {
   RECENT_ROOMS: 'charcoal_chat_recent_rooms',
 };
 
-const generateId = (prefix: string) => `${prefix}_${Math.random().toString(36).substr(2, 9)}`;
-
 export function useChatSession() {
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
@@ -64,8 +62,9 @@ export function useChatSession() {
     setDisplayName(name);
   };
 
-  const createRoom = () => {
-    const newRoomId = generateId('room');
+  const createRoom = (name: string) => {
+    const slug = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') || 'chat';
+    const newRoomId = `room_${slug}_${Math.random().toString(36).substr(2, 4)}`;
     window.location.href = `?room=${newRoomId}`;
   };
 

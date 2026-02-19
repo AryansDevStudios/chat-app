@@ -6,18 +6,28 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Instagram, Plus, MessageCircle, Settings, LogIn, History } from "lucide-react"
+import { Instagram, Plus, MessageCircle, Settings, LogIn, History, X } from "lucide-react"
 import { WelcomeDialog } from "../chat/WelcomeDialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
 export function HomeDashboard() {
   const { displayName, updateDisplayName, createRoom, joinRoom, recentRooms } = useChatSession()
   const [joinId, setJoinId] = useState("")
   const [isEditingName, setIsEditingName] = useState(false)
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false)
+  const [newRoomName, setNewRoomName] = useState("")
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault()
     if (joinId.trim()) {
       joinRoom(joinId.trim())
+    }
+  }
+
+  const handleCreateRoomSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (newRoomName.trim()) {
+      createRoom(newRoomName.trim())
     }
   }
 
@@ -54,7 +64,7 @@ export function HomeDashboard() {
         {/* Actions */}
         <div className="grid sm:grid-cols-2 gap-4">
           <Button 
-            onClick={createRoom}
+            onClick={() => setIsCreatingRoom(true)}
             className="h-32 rounded-3xl bg-gradient-to-br from-[#A307BA] via-[#E21E53] to-[#FF8C37] hover:opacity-90 transition-all group"
           >
             <div className="flex flex-col items-center gap-2">
@@ -116,12 +126,52 @@ export function HomeDashboard() {
         )}
       </div>
 
+      {/* Edit Name Dialog */}
       {isEditingName && (
         <WelcomeDialog isOpen={true} onSave={(name) => {
           updateDisplayName(name)
           setIsEditingName(false)
         }} />
       )}
+
+      {/* Create Room Dialog */}
+      <Dialog open={isCreatingRoom} onOpenChange={setIsCreatingRoom}>
+        <DialogContent className="sm:max-w-md bg-[#121212] border-white/10 rounded-[1.5rem] p-8">
+          <DialogHeader className="space-y-4 text-center">
+            <div className="space-y-1">
+              <DialogTitle className="text-2xl font-bold tracking-tight text-white">New Room</DialogTitle>
+              <DialogDescription className="text-muted-foreground text-sm">
+                Give your chat room a name to help others identify it.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+          <form onSubmit={handleCreateRoomSubmit} className="space-y-4 mt-4">
+            <Input
+              placeholder="Room Name (e.g. Friends, Project X)"
+              value={newRoomName}
+              onChange={(e) => setNewRoomName(e.target.value)}
+              className="bg-[#262626] border-white/5 focus-visible:ring-muted-foreground/30 h-11 rounded-md px-4 text-sm placeholder:text-muted-foreground/50"
+              autoFocus
+            />
+            <DialogFooter className="sm:justify-start gap-2">
+              <Button 
+                type="submit" 
+                className="flex-1 bg-gradient-to-br from-[#A307BA] to-[#E21E53] hover:opacity-90 text-white font-bold rounded-md h-10 text-sm transition-all active:scale-95"
+              >
+                Create Room
+              </Button>
+              <Button 
+                type="button" 
+                variant="ghost"
+                onClick={() => setIsCreatingRoom(false)}
+                className="px-4 text-muted-foreground hover:bg-white/5"
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
