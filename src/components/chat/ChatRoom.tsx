@@ -456,7 +456,8 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
 
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     longPressTimer.current = setTimeout(() => {
-      setIsMenuOpen(true)
+      // Logic for long-press disabled temporarily to troubleshoot interaction issues
+      // setIsMenuOpen(true)
     }, 2000)
   }
 
