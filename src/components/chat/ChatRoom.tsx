@@ -23,7 +23,8 @@ import {
   Mic,
   Square,
   Play,
-  Pause
+  Pause,
+  Smile
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -43,6 +44,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface Message {
   id: string
@@ -59,6 +66,22 @@ interface Message {
   edited?: boolean
 }
 
+const STICKERS = [
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3o7TKMGpxVfFvYV4s0/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l41lI4bS07z4J8wEw/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3o7TKMGpxVfFvYV4s0/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l0HlIDU8qnuY3Tchy/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3o7TKMGpxVfFvYV4s0/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l0HlIDU8qnuY3Tchy/giphy.gif",
+]
+
+const GIFS = [
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9ZyZjdD1n/111ebonMs90YLu/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9ZyZjdD1n/3o7TKMGpxVfFvYV4s0/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9ZyZjdD1n/l41lI4bS07z4J8wEw/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZ3RndXIzZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9ZyZjdD1n/111ebonMs90YLu/giphy.gif",
+]
+
 export function ChatRoom() {
   const db = useFirestore()
   const { toast } = useToast()
@@ -68,6 +91,7 @@ export function ChatRoom() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editingMessage, setEditingMessage] = useState<Message | null>(null)
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
   
   // Voice Recording State
   const [isRecording, setIsRecording] = useState(false)
@@ -209,6 +233,22 @@ export function ChatRoom() {
     setSelectedImage(null)
     setAudioBase64(null)
     setReplyTo(null)
+  }
+
+  const sendMediaMessage = (url: string) => {
+    if (!userId || !displayName || !roomId || !db) return
+    const messageData: any = {
+      content: "",
+      imageUrl: url,
+      audioUrl: null,
+      senderId: userId,
+      senderDisplayName: displayName,
+      timestamp: serverTimestamp(),
+      roomId: roomId
+    }
+    const messagesRef = collection(db, "rooms", roomId, "messages")
+    addDocumentNonBlocking(messagesRef, messageData)
+    setIsPickerOpen(false)
   }
 
   const handleShare = async () => {
@@ -356,6 +396,52 @@ export function ChatRoom() {
               >
                 <Camera className="w-5 h-5 text-white" />
               </Button>
+              <Popover open={isPickerOpen} onOpenChange={setIsPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 rounded-full hover:bg-white/10 transition-all active:scale-90"
+                  >
+                    <Smile className="w-5 h-5 text-white" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="top" className="w-80 p-0 bg-[#262626] border-white/10 rounded-2xl overflow-hidden">
+                  <Tabs defaultValue="stickers" className="w-full">
+                    <TabsList className="w-full bg-transparent border-b border-white/10 h-10 rounded-none p-0">
+                      <TabsTrigger value="stickers" className="flex-1 rounded-none data-[state=active]:bg-white/5 data-[state=active]:text-white">Stickers</TabsTrigger>
+                      <TabsTrigger value="gifs" className="flex-1 rounded-none data-[state=active]:bg-white/5 data-[state=active]:text-white">GIFs</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="stickers" className="p-2 h-64 overflow-y-auto mt-0">
+                      <div className="grid grid-cols-3 gap-2">
+                        {STICKERS.map((url, i) => (
+                          <button 
+                            key={i} 
+                            onClick={() => sendMediaMessage(url)}
+                            className="aspect-square relative hover:bg-white/5 rounded-xl transition-colors"
+                          >
+                            <Image src={url} alt="Sticker" fill className="object-contain p-1" unoptimized />
+                          </button>
+                        ))}
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="gifs" className="p-2 h-64 overflow-y-auto mt-0">
+                      <div className="grid grid-cols-2 gap-2">
+                        {GIFS.map((url, i) => (
+                          <button 
+                            key={i} 
+                            onClick={() => sendMediaMessage(url)}
+                            className="aspect-video relative hover:bg-white/5 rounded-xl transition-colors overflow-hidden"
+                          >
+                            <Image src={url} alt="GIF" fill className="object-cover" unoptimized />
+                          </button>
+                        ))}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </PopoverContent>
+              </Popover>
             </div>
             
             {isRecording ? (
