@@ -448,6 +448,9 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    // Only handle left click / touch
+    if (e.button !== 0) return;
+    
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     longPressTimer.current = setTimeout(() => {
       setIsMenuOpen(true)
@@ -484,6 +487,7 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
   }
 
   const toggleAudio = (e: React.MouseEvent) => {
+    e.preventDefault()
     e.stopPropagation()
     if (!audioRef.current) return
     if (isPlaying) {
@@ -528,31 +532,26 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
       )}
 
       <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
-          <div className={cn(
-            "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all active:scale-[0.98] group",
-            isMe ? "ig-bubble-me" : "ig-bubble-other",
-            !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
-            isMe && !isLastInGroup && "mb-0.5",
-            !isMe && !isLastInGroup && "mb-0.5",
-            msg.imageUrl && "p-0 overflow-hidden",
-            msg.audioUrl && "min-w-[200px]"
-          )}>
-            
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsMenuOpen(true);
-              }}
-              className={cn(
-                "absolute top-1 right-1 p-0.5 rounded-full bg-black/30 backdrop-blur-md opacity-0 transition-opacity md:group-hover:opacity-100 z-10",
-                isMenuOpen && "opacity-100"
-              )}
-            >
-              <ChevronDown className="w-4 h-4 text-white/90" />
-            </button>
-
+        <DropdownMenuTrigger asChild>
+          {/* We wrap in a button to prevent standard click triggering while allowing context menu */}
+          <div 
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              // Strictly prevent the menu from opening on standard click
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            className={cn(
+              "flex flex-col relative break-all whitespace-pre-wrap overflow-hidden cursor-default transition-all active:scale-[0.98] group",
+              isMe ? "ig-bubble-me" : "ig-bubble-other",
+              !isLastInGroup && (isMe ? "rounded-br-[0.3rem]" : "rounded-bl-[0.3rem]"),
+              isMe && !isLastInGroup && "mb-0.5",
+              !isMe && !isLastInGroup && "mb-0.5",
+              msg.imageUrl && "p-0 overflow-hidden",
+              msg.audioUrl && "min-w-[200px]"
+            )}
+          >
             {msg.replyToId && (
               <div className="mx-2 mt-2 px-3 py-1.5 bg-black/20 border-l-2 border-white/40 rounded-lg mb-1 opacity-80">
                 <div className="text-[11px] font-bold opacity-70 flex items-center gap-1">
@@ -574,7 +573,7 @@ function MessageBubble({ msg, isMe, onReply, onEdit, onDelete, isFirstInGroup, i
                 <Button 
                   size="icon" 
                   variant="ghost" 
-                  className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40"
+                  className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 z-10"
                   onClick={toggleAudio}
                 >
                   {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
